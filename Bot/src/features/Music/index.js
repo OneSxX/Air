@@ -609,17 +609,26 @@ async function ensureVoiceConnection(state, voiceChannel) {
   }
 
   if (!ready) {
+    await sleep(1_500);
     const me = guild.members?.me ||
       await (guild.members.fetchMe() || Promise.resolve(null)).catch((err) => { globalThis.__airWarnSuppressedError?.(err); return null; });
     const botJoinedSameChannel = String(me?.voice?.channelId || "") === String(voiceChannel.id);
+    const currentStatus = String(connection.state?.status || lastStatus || "unknown");
+    const isRecoverableStatus =
+      currentStatus === VoiceConnectionStatus.Signalling ||
+      currentStatus === VoiceConnectionStatus.Connecting ||
+      lastStatus === VoiceConnectionStatus.Signalling ||
+      lastStatus === VoiceConnectionStatus.Connecting;
 
     // Bazi ortamlarda Ready gec geliyor (ozellikle signalling/connecting'de).
-    // Bot fiilen ayni ses kanalina girdiyse tamamen hata vermek yerine devam et.
-    if (botJoinedSameChannel &&
-      (lastStatus === VoiceConnectionStatus.Signalling || lastStatus === VoiceConnectionStatus.Connecting)) {
+    // Bot fiilen ayni ses kanalina girdiyse veya recoverable durumda ise hata vermeden devam et.
+    if (botJoinedSameChannel || isRecoverableStatus) {
       connection.subscribe(state.player);
       state.connection = connection;
       state.voiceChannelId = voiceChannel.id;
+      if (!botJoinedSameChannel) {
+        console.warn(`[music] Voice ready timeout, recoverable status ile devam ediliyor: ${currentStatus}`);
+      }
       return;
     }
 
@@ -878,6 +887,14 @@ async function playNext(state) {
   if (!state.connection) {
     state.current = null;
     return false;
+  }
+
+  try {
+    if (state.connection.state?.status !== VoiceConnectionStatus.Ready) {
+      await entersState(state.connection, VoiceConnectionStatus.Ready, 8_000);
+    }
+  } catch (err) {
+    globalThis.__airWarnSuppressedError?.(err);
   }
 
   const next = state.queue.shift();
