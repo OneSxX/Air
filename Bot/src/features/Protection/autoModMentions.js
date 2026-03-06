@@ -1,0 +1,158 @@
+const {
+  AutoModerationActionType,
+  AutoModerationRuleEventType,
+  AutoModerationRuleTriggerType,
+  PermissionFlagsBits,
+} = require("discord.js");
+
+const MENTIONS_AUTOMOD_RULE_NAME = "AIR | Bahsetme Spamlemeyi Engelle";
+const MAX_AUTOMOD_EXEMPT = 50;
+const MAX_AUTOMOD_TIMEOUT_SECONDS = 28 * 24 * 60 * 60;
+const MIN_AUTOMOD_TIMEOUT_SECONDS = 60;
+
+function normalizeSnowflakeList(raw, max = MAX_AUTOMOD_EXEMPT) {
+  const src = Array.isArray(raw) ? raw : [];
+  const out = [];
+  for (const item of src) {
+    const id = String(item || "").trim();
+    if (!/^\d{15,25}$/.test(id)) continue;
+    if (out.includes(id)) continue;
+    out.push(id);
+    if (out.length >= max) break;
+  }
+  return out;
+}
+
+function normalizeTimeoutSeconds(rawMs) {
+  const ms = Number(rawMs);
+  if (!Number.isFinite(ms) || ms <= 0) return 0;
+  const clampedMs = Math.min(ms, MAX_AUTOMOD_TIMEOUT_SECONDS * 1000);
+  return Math.max(MIN_AUTOMOD_TIMEOUT_SECONDS, Math.round(clampedMs / 1000));
+}
+
+function normalizeMentionTotalLimit(raw) {
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return 5;
+  return Math.max(1, Math.min(50, Math.round(n)));
+}
+
+async function resolveExistingRule(guild, savedRuleId) {
+  if (!guild?.autoModerationRules) return null;
+
+  const ruleId = String(savedRuleId || "").trim();
+  if (ruleId) {
+    const fromCache = guild.autoModerationRules.cache?.get?.(ruleId);
+    if (fromCache) return fromCache;
+
+    const fetched = await (guild.autoModerationRules.fetch(ruleId) || Promise.resolve(null)).catch((err) => { globalThis.__airWarnSuppressedError?.(err); return null; });
+    if (fetched) return fetched;
+  }
+
+  const rules = await (guild.autoModerationRules.fetch() || Promise.resolve(null)).catch((err) => { globalThis.__airWarnSuppressedError?.(err); return null; });
+  if (!rules) return null;
+
+  return rules.find(
+    (rule) =>
+      rule?.triggerType === AutoModerationRuleTriggerType.MentionSpam &&
+      rule?.name === MENTIONS_AUTOMOD_RULE_NAME
+  ) || null;
+}
+
+async function syncMentionsAutoModRule(guild, cfg, opts = {}) {
+  if (!guild?.autoModerationRules) {
+    return { ok: false, reason: "AUTOMOD_UNAVAILABLE" };
+  }
+
+  const botMember = guild.members?.me || null;
+  const hasManageGuild = !!botMember?.permissions?.has?.(PermissionFlagsBits.ManageGuild);
+  const hasModerateMembers = !!botMember?.permissions?.has?.(PermissionFlagsBits.ModerateMembers);
+  if (!hasManageGuild) {
+    return { ok: false, reason: "MISSING_MANAGE_GUILD" };
+  }
+
+  try {
+    const mentionsCfg = cfg?.mentions || {};
+    const enabled = !!cfg?.toggles?.mentions;
+    const mentionTotalLimit = normalizeMentionTotalLimit(mentionsCfg.maxCount);
+    const timeoutSeconds = normalizeTimeoutSeconds(cfg?.timeouts?.mentions);
+    const exemptRoles = normalizeSnowflakeList(mentionsCfg.exemptRoleIds);
+    const exemptChannels = normalizeSnowflakeList(mentionsCfg.exemptChannelIds);
+    const savedRuleId = String(mentionsCfg.autoModRuleId || "").trim();
+
+    const rule = await resolveExistingRule(guild, savedRuleId);
+
+    const actions = [{ type: AutoModerationActionType.BlockMessage }];
+    const timeoutRequested = timeoutSeconds > 0;
+    let timeoutApplied = false;
+    let timeoutSkippedReason = null;
+    if (timeoutRequested && hasModerateMembers) {
+      actions.push({
+        type: AutoModerationActionType.Timeout,
+        metadata: { durationSeconds: timeoutSeconds },
+      });
+      timeoutApplied = true;
+    } else if (timeoutRequested) {
+      timeoutSkippedReason = "MISSING_MODERATE_MEMBERS";
+    }
+
+    const patch = {
+      name: MENTIONS_AUTOMOD_RULE_NAME,
+      enabled,
+      triggerMetadata: {
+        mentionTotalLimit,
+      },
+      actions,
+      exemptRoles,
+      exemptChannels,
+      reason: "Protection: Etiket ayarlarini AutoMod ile senkronla",
+    };
+
+    if (rule) {
+      const updated = await rule.edit(patch);
+      return {
+        ok: true,
+        ruleId: updated?.id || rule.id || null,
+        created: false,
+        enabled,
+        timeoutRequested,
+        timeoutApplied,
+        timeoutSeconds,
+        timeoutSkippedReason,
+      };
+    }
+
+    if (!enabled && opts.createIfMissingWhenDisabled !== true) {
+      return { ok: true, ruleId: null, created: false, enabled: false, skipped: true };
+    }
+
+    const created = await guild.autoModerationRules.create({
+      ...patch,
+      eventType: AutoModerationRuleEventType.MessageSend,
+      triggerType: AutoModerationRuleTriggerType.MentionSpam,
+    });
+
+    return {
+      ok: true,
+      ruleId: created?.id || null,
+      created: true,
+      enabled,
+      timeoutRequested,
+      timeoutApplied,
+      timeoutSeconds,
+      timeoutSkippedReason,
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      reason: "AUTOMOD_SYNC_FAILED",
+      error: error?.rawError?.message || error?.message || String(error),
+      code: error?.code || error?.rawError?.code || null,
+      status: error?.status || null,
+    };
+  }
+}
+
+module.exports = {
+  MENTIONS_AUTOMOD_RULE_NAME,
+  syncMentionsAutoModRule,
+};
