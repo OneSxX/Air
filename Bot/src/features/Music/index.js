@@ -10,6 +10,7 @@ const {
   joinVoiceChannel,
 } = require("@discordjs/voice");
 const { spawn } = require("node:child_process");
+const { PassThrough } = require("node:stream");
 const { ChannelType, PermissionFlagsBits } = require("discord.js");
 const play = require("play-dl");
 
@@ -644,6 +645,12 @@ async function ensureVoiceConnection(state, voiceChannel) {
   connection.subscribe(state.player);
   state.connection = connection;
   state.voiceChannelId = voiceChannel.id;
+
+  const me = guild.members?.me ||
+    await (guild.members.fetchMe() || Promise.resolve(null)).catch((err) => { globalThis.__airWarnSuppressedError?.(err); return null; });
+  if (me?.voice?.serverMute) {
+    throw new Error("Bot sunucu tarafindan susturulmus. Botu ses kanalinda susturmadan tekrar dene.");
+  }
 }
 
 async function resolveTracks(query, requesterId) {
@@ -819,15 +826,27 @@ async function createResourceFromTrack(track) {
 
       ytdlp.stdout.pipe(ffmpeg.stdin);
 
-      ffmpeg.stdout.once("readable", () => {
+      const audioOut = new PassThrough();
+      let bytesOut = 0;
+      const MIN_AUDIO_BYTES = 8 * 1024;
+      const firstAudioTimer = setTimeout(() => {
         if (settled) return;
+        fail("ffmpeg ses verisi uretemedi.");
+      }, 10_000);
+
+      ffmpeg.stdout.pipe(audioOut);
+      audioOut.on("data", (chunk) => {
+        if (!Buffer.isBuffer(chunk)) return;
+        bytesOut += chunk.length;
+        if (settled || bytesOut < MIN_AUDIO_BYTES) return;
+
         settled = true;
         clearTimeout(timer);
-        const pcmStream = ffmpeg.stdout;
-        pcmStream.once("close", () => stopChildren());
-        pcmStream.once("end", () => stopChildren());
+        clearTimeout(firstAudioTimer);
+        audioOut.once("close", () => stopChildren());
+        audioOut.once("end", () => stopChildren());
         try {
-          resolve(createAudioResource(pcmStream, { inputType: StreamType.OggOpus }));
+          resolve(createAudioResource(audioOut, { inputType: StreamType.OggOpus }));
         } catch (err) {
           fail(`audio resource olusturulamadi: ${err?.message || "bilinmeyen"}`);
         }
@@ -847,6 +866,7 @@ async function createResourceFromTrack(track) {
 
       ffmpeg.once("exit", (code) => {
         if (settled) return;
+        clearTimeout(firstAudioTimer);
         const lastLine = ffmpegErr
           .split(/\r?\n/)
           .map((x) => x.trim())

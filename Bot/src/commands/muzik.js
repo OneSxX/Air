@@ -70,6 +70,12 @@ function mapMusicError(err) {
   if (lower.includes("yt-dlp tum format denemelerinde basarisiz")) {
     return "yt-dlp tum format denemelerinde basarisiz oldu. yt-dlp'yi guncelleyip tekrar dene.";
   }
+  if (lower.includes("ffmpeg ses verisi uretemedi")) {
+    return "Ses akisi baslatilamadi. ffmpeg/yt-dlp ciktilarini kontrol et ve baska bir YouTube linkiyle tekrar dene.";
+  }
+  if (lower.includes("sunucu tarafindan susturulmus")) {
+    return "Bot ses kanalinda sunucu tarafindan susturulmus. Botu unmute edip tekrar dene.";
+  }
   if (lower.includes("yt-dlp") && lower.includes("calistirilamadi")) {
     return "yt-dlp bulunamadi. VPS'e `yt-dlp` kur veya YTDLP_PATH tanimla.";
   }
