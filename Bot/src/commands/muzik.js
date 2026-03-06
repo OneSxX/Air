@@ -61,6 +61,9 @@ function mapMusicError(err) {
   if (lower.includes("ffmpeg")) {
     return "FFmpeg eksik gorunuyor. VPS'e ffmpeg kurmalisin.";
   }
+  if (lower.includes("invalid onerror method")) {
+    return "Akim katmani uyumsuzlugu olustu. Bot guncellendi, VPS'te `npm install` ve `pm2 restart air-bot` yap.";
+  }
   if (lower.includes("yt-dlp") && lower.includes("calistirilamadi")) {
     return "yt-dlp bulunamadi. VPS'e `yt-dlp` kur veya YTDLP_PATH tanimla.";
   }

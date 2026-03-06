@@ -12,12 +12,6 @@ const {
 const { spawn } = require("node:child_process");
 const { ChannelType, PermissionFlagsBits } = require("discord.js");
 const play = require("play-dl");
-let ytdlCore = null;
-try {
-  ytdlCore = require("@distube/ytdl-core");
-} catch {
-  ytdlCore = null;
-}
 
 const MAX_QUEUE_LENGTH = 100;
 const MAX_PLAYLIST_ADD = 20;
@@ -31,9 +25,7 @@ const PLAY_START_RETRY_COUNT = 3;
 const PLAY_START_TIMEOUT_MS = 6_000;
 const PLAY_START_RETRY_WAIT_MS = 1_000;
 const PLAYDL_TIMEOUT_MS = 12_000;
-const YTDL_TIMEOUT_MS = 12_000;
 const YTDLP_TIMEOUT_MS = 15_000;
-const YTDL_HIGH_WATER_MARK = 1 << 24;
 const STATE_LOCK_TIMEOUT_MS = 35_000;
 const STATE_LOCK_STALE_MS = 40_000;
 const DISCONNECT_REJOIN_ATTEMPTS = 3;
@@ -753,37 +745,6 @@ async function createResourceFromTrack(track) {
 
   if (!isLikelyYoutubeUrl(track?.url)) {
     throw new Error(`Ses akisi alinamadi. ${errors.join(" | ")}`);
-  }
-
-  if (ytdlCore) {
-    try {
-      const cookieHeader = getYoutubeCookieHeader();
-      const requestOptions = cookieHeader
-        ? { headers: { cookie: cookieHeader } }
-        : undefined;
-
-      const ytdlStream = await withTimeout(
-        Promise.resolve(
-          ytdlCore(String(track.url), {
-            filter: "audioonly",
-            quality: "highestaudio",
-            highWaterMark: YTDL_HIGH_WATER_MARK,
-            dlChunkSize: 0,
-            requestOptions,
-          })
-        ),
-        YTDL_TIMEOUT_MS,
-        "ytdl ses akisi"
-      );
-
-      return createAudioResource(ytdlStream, {
-        inputType: StreamType.Arbitrary,
-      });
-    } catch (err) {
-      errors.push(`ytdl-core: ${err?.message || "bilinmeyen"}`);
-    }
-  } else {
-    errors.push("ytdl-core: paket kurulu degil");
   }
 
   try {
