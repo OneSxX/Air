@@ -1,7 +1,7 @@
 const { EmbedBuilder } = require("discord.js");
 const DEFAULT_TOP_THUMBNAIL_URL = "https://i.imgur.com/nK3i3gSh.jpg";
 const RAW_TOP_THUMBNAIL_URL = process.env.SERVERTOP_THUMBNAIL_URL || "https://imgur.com/30RZhzE";
-const COIN_EMOJI = "<:coin:1476059043389767792>";
+const COIN_EMOJI = "<:coin:1479576497051406396>";
 const PREV_EMOJI = "\u2B05\uFE0F";
 const NEXT_EMOJI = "\u27A1\uFE0F";
 const PAGE_SIZE = 10;

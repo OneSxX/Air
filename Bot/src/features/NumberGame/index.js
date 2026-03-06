@@ -1,5 +1,5 @@
 const NUMBER_GAME_CFG_KEY = (guildId) => `number_game_cfg_${guildId}`;
-const DEFAULT_APPROVE_EMOJI = "<:Onay:1477967088344891474>";
+const DEFAULT_APPROVE_EMOJI = "<:Onay:1479576579171680306>";
 
 const guildLocks = new Map();
 

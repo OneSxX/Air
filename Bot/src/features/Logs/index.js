@@ -986,8 +986,8 @@ function createForumTopicIntroEmbed(topic) {
     .setDescription(description);
 }
 
-const TOGGLE_KAPALI = "<:toggle_kapali:1470688093550936206>";
-const TOGGLE_ACIK = "<:toggle_acik:1470688071317061662>";
+const TOGGLE_KAPALI = "<:toggle_kapali:1479575724359811348>";
+const TOGGLE_ACIK = "<:toggle_acik:1479575688259309789>";
 
 function panelStatusBadge(id) {
   return id ? TOGGLE_ACIK : TOGGLE_KAPALI;

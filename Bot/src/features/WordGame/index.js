@@ -8,7 +8,7 @@ const AUTOCOMPLETE_TIMEOUT_MS = 15_000;
 const AUTOCOMPLETE_CACHE_TTL_MS = 12 * 60 * 60 * 1000;
 const TDK_GTS_URL = "https://sozluk.gov.tr/gts?ara=";
 const TDK_AUTOCOMPLETE_URL = "https://sozluk.gov.tr/autocomplete.json";
-const DEFAULT_APPROVE_EMOJI = "<:Onay:1477967088344891474>";
+const DEFAULT_APPROVE_EMOJI = "<:Onay:1479576579171680306>";
 
 const START_LETTERS = [
   "a", "b", "c", "\u00e7", "d", "e", "f", "g", "h", "\u0131", "i", "j", "k",

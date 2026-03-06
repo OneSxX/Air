@@ -159,7 +159,7 @@ module.exports = {
         `Yazi Seviyesi: **${formatNumber(textProfile.level)}**\n` +
         `Ses Toplam Sure: **${formatVoiceDurationTwoUnits(totalVoiceSeconds)}**\n` +
         `Ses Seviyesi: **${formatNumber(voiceProfile.level)}**\n` +
-        `Coin: <:coin:1476059043389767792> **${formatCoin(totalCoins)}**`;
+        `Coin: <:coin:1479576497051406396> **${formatCoin(totalCoins)}**`;
 
       const messagesValue =
         `1g: **${formatNumber(card?.messageActivity?.d1)}**\n` +
