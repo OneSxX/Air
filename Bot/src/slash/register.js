@@ -179,6 +179,39 @@ function getGlobalCommandsBody() {
       default_member_permissions: "32",
     },
     {
+      name: "komutoda",
+      description: "Komutlarin kullanilacagi kanali ayarlar.",
+      type: 1,
+      dm_permission: false,
+      default_member_permissions: "32",
+      options: [
+        {
+          type: 1,
+          name: "belirle",
+          description: "Komutlarin calisacagi kanali belirler.",
+          options: [
+            {
+              name: "kanal",
+              description: "Komutlarin kullanilacagi yazi kanali",
+              type: 7,
+              required: true,
+              channel_types: [0, 5],
+            },
+          ],
+        },
+        {
+          type: 1,
+          name: "durum",
+          description: "Mevcut komut odasi ayarini gosterir.",
+        },
+        {
+          type: 1,
+          name: "sifirla",
+          description: "Komut odasi kisitini kaldirir.",
+        },
+      ],
+    },
+    {
       name: "autorol",
       description: "Sunucuya gelen uyelere otomatik rol verir.",
       type: 1,

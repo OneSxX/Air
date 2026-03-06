@@ -10,6 +10,10 @@ const {
 } = require("discord.js");
 const { createEmbed } = require("../../utils/embed");
 const { isCommandHandledBy } = require("../externalCommands");
+const {
+  checkCommandChannelRestriction,
+  buildCommandChannelBlockedMessage,
+} = require("../../utils/commandChannel");
 
 // DB keys
 const TCFG = (gid) => `ticket_cfg_${gid}`;
@@ -284,6 +288,19 @@ module.exports = function registerTicket(client, db) {
             content: "Bu komut sadece sunucuda kullanilabilir.",
             ephemeral: true,
           });
+        }
+
+        const channelGate = await checkCommandChannelRestriction(interaction, client, {
+          bypassCommands: ["komutoda"],
+        });
+        if (!channelGate.allowed) {
+          return auditedReply(
+            {
+              content: buildCommandChannelBlockedMessage(channelGate.channelId),
+              ephemeral: true,
+            },
+            { ok: false, error: "command_channel_restricted" }
+          );
         }
 
         const systemOps = client.features?.SystemOps;

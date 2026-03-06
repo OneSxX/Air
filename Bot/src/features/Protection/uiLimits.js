@@ -716,7 +716,7 @@ async function resetSelectMenuState(interaction, client, cfgHint = null) {
   const cfg = cfgHint || await getConfig(client.db, interaction.guildId);
 
   if (isCombinedPanelMessage(msg)) {
-    const payload = renderCombinedPanel(cfg, { actor: interaction?.user || null });
+    const payload = renderCombinedPanel(cfg, { actor: interaction?.user || null, guild: interaction?.guild || null });
     await (msg.edit(payload) || Promise.resolve()).catch((err) => { globalThis.__airWarnSuppressedError?.(err); });
     return;
   }
@@ -726,7 +726,7 @@ async function resetSelectMenuState(interaction, client, cfgHint = null) {
     panelTypeFromMessage(msg);
   if (!panelType) return;
 
-  const panels = renderPanels(cfg, { actor: interaction?.user || null });
+  const panels = renderPanels(cfg, { actor: interaction?.user || null, guild: interaction?.guild || null });
   const payload = panels?.[panelType];
   if (!payload) return;
 

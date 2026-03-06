@@ -1,4 +1,8 @@
 const { isExternalFeatureCommand } = require("../features/externalCommands");
+const {
+  checkCommandChannelRestriction,
+  buildCommandChannelBlockedMessage,
+} = require("../utils/commandChannel");
 
 module.exports = {
   name: "interactionCreate",
@@ -36,6 +40,18 @@ module.exports = {
       // These commands are handled by their own feature listeners.
       if (isExternalFeatureCommand(interaction?.commandName)) {
         return;
+      }
+
+      const channelGate = await checkCommandChannelRestriction(interaction, client, {
+        bypassCommands: ["komutoda"],
+      });
+      if (!channelGate.allowed) {
+        return interaction
+          .reply({
+            content: buildCommandChannelBlockedMessage(channelGate.channelId),
+            ephemeral: true,
+          })
+          .catch((err) => { globalThis.__airWarnSuppressedError?.(err); });
       }
 
       if (systemOps?.checkCommandRateLimit) {

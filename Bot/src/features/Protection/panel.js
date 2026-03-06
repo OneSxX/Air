@@ -48,12 +48,21 @@ function e(name, fallback = "") {
   return `<:${name}:${id}>`;
 }
 
-function withEmoji(label, value, emojiName, description) {
+function canUseOptionEmoji(id, opts = {}) {
+  if (!id) return false;
+  if (opts?.disableOptionEmoji) return false;
+
+  const guild = opts?.guild || null;
+  if (!guild?.emojis?.cache) return true;
+  return guild.emojis.cache.has(id);
+}
+
+function withEmoji(label, value, emojiName, description, opts = {}) {
   const out = { label, value };
   if (description) out.description = description;
 
   const id = APP_EMOJI[emojiName];
-  if (id) out.emoji = { id, name: emojiName };
+  if (canUseOptionEmoji(id, opts)) out.emoji = { id, name: emojiName };
 
   return out;
 }
@@ -160,52 +169,52 @@ function limitsEmbed(cfg, opts = {}) {
   return embed;
 }
 
-function chatRows() {
+function chatRows(opts = {}) {
   const menu = new StringSelectMenuBuilder()
     .setCustomId("prot:ui:chat")
     .setPlaceholder("Sohbet Korumaları")
     .addOptions(
-      withEmoji("Caps Aç/Kapat", "tg:caps", "caps_lock", "Kapalıyken ayar modalı açar, açıkken kapatma ister."),
-      withEmoji("Link Aç/Kapat", "tg:links", "link_engeli", "Kapalıyken ayar modalı açar, açıkken kapatma ister."),
-      withEmoji("Invite Engeli", "tg:invite", "invite_engel", "Kapalıyken ayar modalı açar, açıkken kapatma ister."),
-      withEmoji("Küfür Engeli", "tg:profanity", "kufur_engel", "Kapalıyken ayar modalı açar, açıkken kapatma ister."),
-      withEmoji("Emoji Aç/Kapat", "tg:emoji", "emoji_limit", "Kapalıyken ayar modalı açar, açıkken kapatma ister."),
-      withEmoji("Etiket Aç/Kapat", "tg:mentions", "etiket_limit", "Kapalıyken ayar modalı açar, açıkken kapatma ister."),
-      withEmoji("Flood Koruma", "tg:flood", "flood_koruma", "Kapalıyken ayar modalı açar, açıkken kapatma ister."),
-      withEmoji("Spam Koruma", "tg:spam", "spam_koruma", "Kapalıyken ayar modalı açar, açıkken kapatma ister."),
-      withEmoji("Everyone Aç/Kapat", "tg:everyone", "everyone_limit", "Kapalıyken ayar modalı açar, açıkken kapatma ister.")
+      withEmoji("Caps Aç/Kapat", "tg:caps", "caps_lock", "Kapalıyken ayar modalı açar, açıkken kapatma ister.", opts),
+      withEmoji("Link Aç/Kapat", "tg:links", "link_engeli", "Kapalıyken ayar modalı açar, açıkken kapatma ister.", opts),
+      withEmoji("Invite Engeli", "tg:invite", "invite_engel", "Kapalıyken ayar modalı açar, açıkken kapatma ister.", opts),
+      withEmoji("Küfür Engeli", "tg:profanity", "kufur_engel", "Kapalıyken ayar modalı açar, açıkken kapatma ister.", opts),
+      withEmoji("Emoji Aç/Kapat", "tg:emoji", "emoji_limit", "Kapalıyken ayar modalı açar, açıkken kapatma ister.", opts),
+      withEmoji("Etiket Aç/Kapat", "tg:mentions", "etiket_limit", "Kapalıyken ayar modalı açar, açıkken kapatma ister.", opts),
+      withEmoji("Flood Koruma", "tg:flood", "flood_koruma", "Kapalıyken ayar modalı açar, açıkken kapatma ister.", opts),
+      withEmoji("Spam Koruma", "tg:spam", "spam_koruma", "Kapalıyken ayar modalı açar, açıkken kapatma ister.", opts),
+      withEmoji("Everyone Aç/Kapat", "tg:everyone", "everyone_limit", "Kapalıyken ayar modalı açar, açıkken kapatma ister.", opts)
     );
 
   return [new ActionRowBuilder().addComponents(menu)];
 }
 
-function serverRows() {
+function serverRows(opts = {}) {
   const menu = new StringSelectMenuBuilder()
     .setCustomId("prot:ui:server")
     .setPlaceholder("Sunucu Korumaları")
     .addOptions(
-      withEmoji("Tehlikeli Bot Ekleme Koruma Aç/Kapat", "tg:bot", "tehlikeli_bot_ekleme", "Şüpheli bot eklenmelerine karşı korur."),
-      withEmoji("Rol Verme Koruma Aç/Kapat", "tg:rolegive", "rol_verme_koruma", "Yetkili rol dağıtımını denetler."),
-      withEmoji("Özel URL Bildirimi Aç/Kapat", "tg:vanity", "ozel_url_bildirim", "Vanity URL değişimlerini bildirir."),
-      withEmoji("Raid Koruma", "tg:antiRaid", "anti_raid", "Kapalıyken ayar modalı açar, açıkken kapatma ister."),
-      withEmoji("Webhook Koruma Aç/Kapat", "tg:webhook", "webhook_koruma", "İzinsiz webhook işlemlerini denetler."),
-      withEmoji("Snapshot Koruma Aç/Kapat", "tg:snapshot", "snapshot_koruma", "İzin değişikliklerini geri yükler.")
+      withEmoji("Tehlikeli Bot Ekleme Koruma Aç/Kapat", "tg:bot", "tehlikeli_bot_ekleme", "Şüpheli bot eklenmelerine karşı korur.", opts),
+      withEmoji("Rol Verme Koruma Aç/Kapat", "tg:rolegive", "rol_verme_koruma", "Yetkili rol dağıtımını denetler.", opts),
+      withEmoji("Özel URL Bildirimi Aç/Kapat", "tg:vanity", "ozel_url_bildirim", "Vanity URL değişimlerini bildirir.", opts),
+      withEmoji("Raid Koruma", "tg:antiRaid", "anti_raid", "Kapalıyken ayar modalı açar, açıkken kapatma ister.", opts),
+      withEmoji("Webhook Koruma Aç/Kapat", "tg:webhook", "webhook_koruma", "İzinsiz webhook işlemlerini denetler.", opts),
+      withEmoji("Snapshot Koruma Aç/Kapat", "tg:snapshot", "snapshot_koruma", "İzin değişikliklerini geri yükler.", opts)
     );
 
   return [new ActionRowBuilder().addComponents(menu)];
 }
 
-function limitsRows() {
+function limitsRows(opts = {}) {
   const menu = new StringSelectMenuBuilder()
     .setCustomId("prot:ui:limits")
     .setPlaceholder("Yetki Limitleri")
     .addOptions(
-      withEmoji("Kanal Silme Sınırı Koruma", "tg:chDel", "kanal_silme_limit", "Kapalıyken limit modalı açar, açıkken kapatma ister."),
-      withEmoji("Kanal Oluşturma Sınırı Koruma", "tg:chCreate", "kanal_olusturma_limit", "Kapalıyken limit modalı açar, açıkken kapatma ister."),
-      withEmoji("Rol Silme Sınırı Koruma", "tg:roleDel", "rol_silme_limit", "Kapalıyken limit modalı açar, açıkken kapatma ister."),
-      withEmoji("Rol Oluşturma Sınırı Koruma", "tg:roleCreate", "rol_olusturma_limit", "Kapalıyken limit modalı açar, açıkken kapatma ister."),
-      withEmoji("Ban Sınırı Koruma", "tg:ban", "ban_limit", "Kapalıyken limit modalı açar, açıkken kapatma ister."),
-      withEmoji("Kick Sınırı Koruma", "tg:kick", "kick_limit", "Kapalıyken limit modalı açar, açıkken kapatma ister.")
+      withEmoji("Kanal Silme Sınırı Koruma", "tg:chDel", "kanal_silme_limit", "Kapalıyken limit modalı açar, açıkken kapatma ister.", opts),
+      withEmoji("Kanal Oluşturma Sınırı Koruma", "tg:chCreate", "kanal_olusturma_limit", "Kapalıyken limit modalı açar, açıkken kapatma ister.", opts),
+      withEmoji("Rol Silme Sınırı Koruma", "tg:roleDel", "rol_silme_limit", "Kapalıyken limit modalı açar, açıkken kapatma ister.", opts),
+      withEmoji("Rol Oluşturma Sınırı Koruma", "tg:roleCreate", "rol_olusturma_limit", "Kapalıyken limit modalı açar, açıkken kapatma ister.", opts),
+      withEmoji("Ban Sınırı Koruma", "tg:ban", "ban_limit", "Kapalıyken limit modalı açar, açıkken kapatma ister.", opts),
+      withEmoji("Kick Sınırı Koruma", "tg:kick", "kick_limit", "Kapalıyken limit modalı açar, açıkken kapatma ister.", opts)
     );
 
   const allBtn = new ButtonBuilder()
@@ -226,14 +235,14 @@ function limitsRows() {
 
 function renderPanels(cfg, opts = {}) {
   return {
-    chat: { embeds: [chatEmbed(cfg, opts)], components: chatRows() },
-    server: { embeds: [serverEmbed(cfg, opts)], components: serverRows() },
-    limits: { embeds: [limitsEmbed(cfg, opts)], components: limitsRows() },
+    chat: { embeds: [chatEmbed(cfg, opts)], components: chatRows(opts) },
+    server: { embeds: [serverEmbed(cfg, opts)], components: serverRows(opts) },
+    limits: { embeds: [limitsEmbed(cfg, opts)], components: limitsRows(opts) },
   };
 }
 
 function renderCombinedPanel(cfg, opts = {}) {
-  const limits = limitsRows();
+  const limits = limitsRows(opts);
   return {
     embeds: [
       chatEmbed(cfg, opts),
@@ -241,8 +250,8 @@ function renderCombinedPanel(cfg, opts = {}) {
       limitsEmbed(cfg, { ...opts, singleMessage: true }),
     ],
     components: [
-      ...chatRows(),
-      ...serverRows(),
+      ...chatRows(opts),
+      ...serverRows(opts),
       limits[0],
       limits[1],
     ],

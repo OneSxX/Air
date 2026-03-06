@@ -21,6 +21,10 @@ const {
   TextInputStyle,
 } = require("discord.js");
 const { isCommandHandledBy } = require("../externalCommands");
+const {
+  checkCommandChannelRestriction,
+  buildCommandChannelBlockedMessage,
+} = require("../../utils/commandChannel");
 
 // -------------------- DB Keys --------------------
 const VC_KEY = (id) => `vc_${id}`;
@@ -143,6 +147,25 @@ async function applyVoicePerms(guild, voice, data) {
   data.managedPermIds = Array.from(desiredManaged);
 }
 
+function resetRoomState(data, fallbackOwnerId = "") {
+  const currentOwner = String(data?.ownerId || "").trim();
+  const safeFallbackOwner = String(fallbackOwnerId || "").trim();
+  const ownerId = USER_ID_RE.test(currentOwner)
+    ? currentOwner
+    : USER_ID_RE.test(safeFallbackOwner)
+      ? safeFallbackOwner
+      : "";
+
+  if (ownerId) data.ownerId = ownerId;
+  data.mods = [];
+  data.allow = [];
+  data.deny = [];
+  data.locked = false;
+  data.hidden = false;
+  data.userLimit = 0;
+  data.managedPermIds = ownerId ? [ownerId] : [];
+}
+
 // -------------------- SYNC: channel -> data --------------------
 async function syncDataFromChannel(guild, voice, data) {
   const everyoneId = guild.roles.everyone.id;
@@ -235,14 +258,17 @@ function buildPanelComponents(data, targetChannelId) {
   const denySel = new ActionRowBuilder().addComponents(denyMenu);
 
   const buttons = new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId(`btn_lock:${targetChannelId}`).setEmoji("🔒").setStyle(ButtonStyle.Danger),
-    new ButtonBuilder().setCustomId(`btn_unlock:${targetChannelId}`).setEmoji("🔓").setStyle(ButtonStyle.Success),
+    new ButtonBuilder()
+      .setCustomId(`btn_lock_toggle:${targetChannelId}`)
+      .setEmoji(data.locked ? "🔓" : "🔒")
+      .setStyle(data.locked ? ButtonStyle.Success : ButtonStyle.Danger),
     new ButtonBuilder().setCustomId(`btn_limit:${targetChannelId}`).setEmoji("👥").setStyle(ButtonStyle.Primary),
     new ButtonBuilder().setCustomId(`btn_rename:${targetChannelId}`).setEmoji("✏️").setStyle(ButtonStyle.Secondary),
     new ButtonBuilder()
       .setCustomId(`btn_visibility:${targetChannelId}`)
       .setEmoji("👁️")
-      .setStyle(data.hidden ? ButtonStyle.Danger : ButtonStyle.Success)
+      .setStyle(data.hidden ? ButtonStyle.Danger : ButtonStyle.Success),
+    new ButtonBuilder().setCustomId(`btn_reset:${targetChannelId}`).setEmoji("🧹").setStyle(ButtonStyle.Secondary)
   );
 
   return [ownerSel, modsSel, allowSel, denySel, buttons];
@@ -515,6 +541,19 @@ module.exports = function registerVoiceManager(client, db) {
               ephemeral: true,
             }, { ok: false, error: "rate_limited" });
           }
+        }
+
+        const channelGate = await checkCommandChannelRestriction(interaction, client, {
+          bypassCommands: ["komutoda", "panel"],
+        });
+        if (!channelGate.allowed) {
+          return auditedReply(
+            {
+              content: buildCommandChannelBlockedMessage(channelGate.channelId),
+              ephemeral: true,
+            },
+            { ok: false, error: "command_channel_restricted" }
+          );
         }
 
         // /setcreate
@@ -826,11 +865,28 @@ module.exports = function registerVoiceManager(client, db) {
           return auditedReply( { content: "🔓 Açıldı.", ephemeral: true });
         }
 
+        if (base === "btn_lock_toggle") {
+          data.locked = !data.locked;
+          await afterChange(db, interaction.guild, voice, data, panelChannel);
+          return auditedReply( { content: data.locked ? "🔒 Kilitlendi." : "🔓 Açıldı.", ephemeral: true });
+        }
+
         if (base === "btn_visibility") {
           data.hidden = !data.hidden;
           await afterChange(db, interaction.guild, voice, data, panelChannel);
           return auditedReply( {
             content: data.hidden ? "Oda gorunmez yapildi." : "Oda gorunur yapildi.",
+            ephemeral: true,
+          });
+        }
+
+        if (base === "btn_reset") {
+          await (voice.setUserLimit(0) || Promise.resolve()).catch((err) => { globalThis.__airWarnSuppressedError?.(err); });
+          await (voice.permissionOverwrites.set([]) || Promise.resolve()).catch((err) => { globalThis.__airWarnSuppressedError?.(err); });
+          resetRoomState(data, interaction.user?.id);
+          await afterChange(db, interaction.guild, voice, data, panelChannel);
+          return auditedReply( {
+            content: "🧹 Oda ayarlari sifirlandi. Kanal ismi korunarak ilk acilis haline donduruldu.",
             ephemeral: true,
           });
         }

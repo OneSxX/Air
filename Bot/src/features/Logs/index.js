@@ -4976,22 +4976,35 @@ async function onRoleCreate(role, client) {
     delayMs: 700,
     limit: 10,
   });
+
   const createTargets = getEntryTargetIds(entry.entry);
-  if (createTargets.length && !createTargets.some((id) => isSameId(id, role.id))) return;
+  const targetMatched = !createTargets.length || createTargets.some((id) => isSameId(id, role.id));
+  const executorId = targetMatched ? String(entry.executorId || "").trim() : "";
+  const executorIsBot = executorId ? await isBotActor(role.guild, executorId) : false;
+  if (executorIsBot) return;
 
-  const executorId = entry.executorId;
-  if (!executorId || (await isBotActor(role.guild, executorId))) return;
+  const roleLine = `Rol: <@&${role.id}> (\`${role.name}\`)`;
+  const actorLine = executorId
+    ? `Yapan: ${mentionUser(executorId)}`
+    : "Yapan: Bilinmiyor (audit kaydi bulunamadi)";
 
-  await sendModAction(
-    role.guild,
-    cfg,
-    "Rol Oluşturma",
-    [
-      `Rol: <@&${role.id}> (\`${role.name}\`)`,
-      `Yapan: ${mentionUser(executorId)}`,
-    ],
-    { at: entry.at, color: COLOR_PRIMARY, executorId }
+  if (executorId) {
+    await sendModAction(
+      role.guild,
+      cfg,
+      "Rol Olusturma",
+      [roleLine, actorLine],
+      { at: entry.at, color: COLOR_PRIMARY, executorId }
+    );
+    return;
+  }
+
+  const fallbackEmbed = makeEmbed(
+    COLOR_PRIMARY,
+    "Mod Log",
+    `Islem: **Rol Olusturma**\n${roleLine}\n${actorLine}\nSaat: ${formatDate(entry.at)}`
   );
+  await sendByKey(role.guild, cfg, "mod", { embeds: [fallbackEmbed] });
 }
 
 async function onRoleDelete(role, client) {
@@ -5015,22 +5028,35 @@ async function onRoleDelete(role, client) {
     delayMs: 700,
     limit: 10,
   });
+
   const deleteTargets = getEntryTargetIds(entry.entry);
-  if (deleteTargets.length && !deleteTargets.some((id) => isSameId(id, role.id))) return;
+  const targetMatched = !deleteTargets.length || deleteTargets.some((id) => isSameId(id, role.id));
+  const executorId = targetMatched ? String(entry.executorId || "").trim() : "";
+  const executorIsBot = executorId ? await isBotActor(role.guild, executorId) : false;
+  if (executorIsBot) return;
 
-  const executorId = entry.executorId;
-  if (!executorId || (await isBotActor(role.guild, executorId))) return;
+  const roleLine = `Rol: \`${role.name}\` (\`${role.id}\`)`;
+  const actorLine = executorId
+    ? `Yapan: ${mentionUser(executorId)}`
+    : "Yapan: Bilinmiyor (audit kaydi bulunamadi)";
 
-  await sendModAction(
-    role.guild,
-    cfg,
-    "Rol Silme",
-    [
-      `Rol: \`${role.name}\` (\`${role.id}\`)`,
-      `Yapan: ${mentionUser(executorId)}`,
-    ],
-    { at: entry.at, color: COLOR_DANGER, executorId }
+  if (executorId) {
+    await sendModAction(
+      role.guild,
+      cfg,
+      "Rol Silme",
+      [roleLine, actorLine],
+      { at: entry.at, color: COLOR_DANGER, executorId }
+    );
+    return;
+  }
+
+  const fallbackEmbed = makeEmbed(
+    COLOR_DANGER,
+    "Mod Log",
+    `Islem: **Rol Silme**\n${roleLine}\n${actorLine}\nSaat: ${formatDate(entry.at)}`
   );
+  await sendByKey(role.guild, cfg, "mod", { embeds: [fallbackEmbed] });
 }
 
 async function onRoleUpdate(oldRole, newRole, client) {
@@ -5297,6 +5323,7 @@ module.exports = {
     LOG_CFG_CACHE_TTL_MS,
   },
 };
+
 
 
 

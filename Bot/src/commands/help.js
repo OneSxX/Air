@@ -18,6 +18,7 @@ const HELP_SECTIONS = [
       "yedek",
       "giveaway",
       "slashsync",
+      "komutoda",
       "marketyonet",
       "panic",
     ],

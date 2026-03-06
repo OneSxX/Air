@@ -2302,6 +2302,16 @@ async function onMessageUpdateEvent(oldMessage, newMessage, client) {
   await onMessage(msg, client);
 }
 
+async function sendPanelSafely(channel, payload, panelKey) {
+  try {
+    await channel.send(payload);
+    return true;
+  } catch (err) {
+    console.error(`[Protection panel send] ${panelKey}`, err);
+    return false;
+  }
+}
+
 async function sendOrUpdatePanel(interaction, cfg, opts = {}) {
   const recreate = !!opts?.recreate;
   const onlyPanel = ["chat", "server", "limits"].includes(String(opts?.only || ""))
@@ -2322,7 +2332,7 @@ async function sendOrUpdatePanel(interaction, cfg, opts = {}) {
     throw new Error("Bu komut sadece mesaj atilabilen bir text kanalda calisir.");
   }
 
-  const panels = renderPanels(cfg, { actor: interaction?.user || null });
+  const panels = renderPanels(cfg, { actor: interaction?.user || null, guild });
   const botId = guild.members?.me?.id || guild.client?.user?.id;
   const sourceMessage = interaction?.message;
 
@@ -2338,12 +2348,12 @@ async function sendOrUpdatePanel(interaction, cfg, opts = {}) {
 
   if (!fetched) {
     if (onlyPanel) {
-      await channel.send(panels[onlyPanel]);
+      await sendPanelSafely(channel, panels[onlyPanel], onlyPanel);
       return true;
     }
-    await channel.send(panels.chat);
-    await channel.send(panels.server);
-    await channel.send(panels.limits);
+    await sendPanelSafely(channel, panels.chat, "chat");
+    await sendPanelSafely(channel, panels.server, "server");
+    await sendPanelSafely(channel, panels.limits, "limits");
     return true;
   }
 
@@ -2369,7 +2379,7 @@ async function sendOrUpdatePanel(interaction, cfg, opts = {}) {
 
     if (onlyPanel) {
       if (existing[onlyPanel]) await (existing[onlyPanel].delete() || Promise.resolve()).catch((err) => { globalThis.__airWarnSuppressedError?.(err); });
-      await channel.send(panels[onlyPanel]);
+      await sendPanelSafely(channel, panels[onlyPanel], onlyPanel);
       return true;
     }
 
@@ -2378,26 +2388,26 @@ async function sendOrUpdatePanel(interaction, cfg, opts = {}) {
       await (msg.delete() || Promise.resolve()).catch((err) => { globalThis.__airWarnSuppressedError?.(err); });
     }
 
-    await channel.send(panels.chat);
-    await channel.send(panels.server);
-    await channel.send(panels.limits);
+    await sendPanelSafely(channel, panels.chat, "chat");
+    await sendPanelSafely(channel, panels.server, "server");
+    await sendPanelSafely(channel, panels.limits, "limits");
     return true;
   }
 
   if (onlyPanel) {
     if (existing[onlyPanel]) await (existing[onlyPanel].edit(panels[onlyPanel]) || Promise.resolve()).catch((err) => { globalThis.__airWarnSuppressedError?.(err); });
-    else await channel.send(panels[onlyPanel]);
+    else await sendPanelSafely(channel, panels[onlyPanel], onlyPanel);
     return true;
   }
 
   if (existing.chat) await (existing.chat.edit(panels.chat) || Promise.resolve()).catch((err) => { globalThis.__airWarnSuppressedError?.(err); });
-  else await channel.send(panels.chat);
+  else await sendPanelSafely(channel, panels.chat, "chat");
 
   if (existing.server) await (existing.server.edit(panels.server) || Promise.resolve()).catch((err) => { globalThis.__airWarnSuppressedError?.(err); });
-  else await channel.send(panels.server);
+  else await sendPanelSafely(channel, panels.server, "server");
 
   if (existing.limits) await (existing.limits.edit(panels.limits) || Promise.resolve()).catch((err) => { globalThis.__airWarnSuppressedError?.(err); });
-  else await channel.send(panels.limits);
+  else await sendPanelSafely(channel, panels.limits, "limits");
 
   return true;
 }
@@ -2418,7 +2428,7 @@ async function sendOrUpdateCombinedPanel(interaction, cfg, opts = {}) {
     throw new Error("Bu komut sadece mesaj atilabilen bir text kanalda calisir.");
   }
 
-  const payload = renderCombinedPanel(cfg, { actor: interaction?.user || null });
+  const payload = renderCombinedPanel(cfg, { actor: interaction?.user || null, guild });
   const botId = guild.members?.me?.id || guild.client?.user?.id;
   const sourceMessage = interaction?.message;
   if (!recreate && sourceMessage?.author?.id === botId && isCombinedPanelMsg(sourceMessage)) {
