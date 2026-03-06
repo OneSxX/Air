@@ -490,23 +490,29 @@ async function ensureVoiceConnection(state, voiceChannel) {
   const guild = voiceChannel?.guild;
   if (!guild) throw new Error("Ses kanali bulunamadi.");
 
-  let connection =
-    state.connection ||
-    getVoiceConnection(guild.id);
-
-  if (connection && connection.joinConfig?.channelId !== voiceChannel.id) {
-    connection.destroy();
-    connection = null;
-  }
-
-  if (!connection) {
-    connection = joinVoiceChannel({
+  const createConnection = () => {
+    const fresh = joinVoiceChannel({
       channelId: voiceChannel.id,
       guildId: guild.id,
       adapterCreator: guild.voiceAdapterCreator,
       selfDeaf: true,
       selfMute: false,
     });
+    attachConnectionListeners(state, fresh);
+    return fresh;
+  };
+
+  let connection = state.connection || getVoiceConnection(guild.id);
+
+  if (connection && connection.joinConfig?.channelId !== voiceChannel.id) {
+    try {
+      connection.destroy();
+    } catch {}
+    connection = null;
+  }
+
+  if (!connection) {
+    connection = createConnection();
   }
 
   attachConnectionListeners(state, connection);
@@ -520,13 +526,21 @@ async function ensureVoiceConnection(state, voiceChannel) {
     } catch {
       lastStatus = String(connection.state?.status || "unknown");
 
-      try {
-        if (typeof connection.rejoin === "function") {
-          connection.rejoin();
-        }
-      } catch {}
-
       if (attempt < READY_RETRY_COUNT) {
+        try {
+          if (connection.state?.status !== VoiceConnectionStatus.Destroyed) {
+            connection.destroy();
+          }
+        } catch {}
+
+        connection = createConnection();
+
+        try {
+          if (typeof connection.rejoin === "function") {
+            connection.rejoin();
+          }
+        } catch {}
+
         await sleep(READY_RETRY_WAIT_MS * attempt);
       }
     }
@@ -537,7 +551,8 @@ async function ensureVoiceConnection(state, voiceChannel) {
       connection.destroy();
     } catch {}
     throw new Error(
-      `Ses kanalina baglanilamadi (durum: ${lastStatus}). Kanal izinlerini ve VPS UDP ag erisimini kontrol et.`
+      `Ses kanalina baglanilamadi (durum: ${lastStatus}). ` +
+      "Ayni tokenin birden fazla yerde calismadigini, kanal izinlerini ve VPS ag erisimini kontrol et."
     );
   }
 
