@@ -209,7 +209,7 @@ module.exports = {
             requestedBy: interaction.user.id,
             query,
           }),
-          40_000,
+          120_000,
           "Muzik oynatma islemi"
         );
 

@@ -901,6 +901,7 @@ async function createResourceFromTrack(track) {
       return await tryYtdlp();
     } catch (err) {
       errors.push(`yt-dlp: ${err?.message || "bilinmeyen"}`);
+      throw new Error(`Ses akisi alinamadi. ${errors.join(" | ")}`);
     }
   }
 
@@ -918,17 +919,6 @@ async function createResourceFromTrack(track) {
     });
   } catch (err) {
     errors.push(`play-dl: ${err?.message || "bilinmeyen"}`);
-  }
-
-  if (!isLikelyYoutubeUrl(track?.url)) {
-    throw new Error(`Ses akisi alinamadi. ${errors.join(" | ")}`);
-  }
-
-  // YouTube icin ilk deneme yt-dlp ise ve fail olduysa play-dl'den sonra bir kez daha dene.
-  try {
-    return await tryYtdlp();
-  } catch (err) {
-    errors.push(`yt-dlp-2: ${err?.message || "bilinmeyen"}`);
   }
 
   throw new Error(`Ses akisi alinamadi. ${errors.join(" | ")}`);
