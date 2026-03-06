@@ -7,6 +7,21 @@ function normalizeSub(value) {
     .replace(/\u0131/g, "i");
 }
 
+async function runWithTimeout(promise, timeoutMs, label) {
+  let timer = null;
+  const timeoutPromise = new Promise((_, reject) => {
+    timer = setTimeout(() => {
+      reject(new Error(`${label} zaman asimina ugradi.`));
+    }, Math.max(500, Number(timeoutMs) || 0));
+  });
+
+  try {
+    return await Promise.race([promise, timeoutPromise]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 async function getMemberVoiceChannel(interaction) {
   const guild = interaction.guild;
   if (!guild) return null;
@@ -171,32 +186,36 @@ module.exports = {
             .catch((err) => { globalThis.__airWarnSuppressedError?.(err); });
         }
 
-        const result = await music.enqueueFromQuery(client, {
-          guild: interaction.guild,
-          voiceChannel,
-          textChannelId: interaction.channelId,
-          requestedBy: interaction.user.id,
-          query,
-        });
+        const safeResult = await runWithTimeout(
+          music.enqueueFromQuery(client, {
+            guild: interaction.guild,
+            voiceChannel,
+            textChannelId: interaction.channelId,
+            requestedBy: interaction.user.id,
+            query,
+          }),
+          40_000,
+          "Muzik oynatma islemi"
+        );
 
-        if (!result?.addedCount) {
+        if (!safeResult?.addedCount) {
           return interaction.editReply("Sarki kuyruga eklenemedi.").catch((err) => { globalThis.__airWarnSuppressedError?.(err); });
         }
 
-        const playlistText = result.wasPlaylist
-          ? `\n- Playlist eklendi: **${result.addedCount}** sarki`
+        const playlistText = safeResult.wasPlaylist
+          ? `\n- Playlist eklendi: **${safeResult.addedCount}** sarki`
           : "";
-        const nowPlayingText = result.current
-          ? `\n- Simdi calan: **${result.current.title}**`
+        const nowPlayingText = safeResult.current
+          ? `\n- Simdi calan: **${safeResult.current.title}**`
           : "";
-        const skippedText = result.skippedCount > 0
-          ? `\n- Limit nedeniyle eklenemeyen: **${result.skippedCount}**`
+        const skippedText = safeResult.skippedCount > 0
+          ? `\n- Limit nedeniyle eklenemeyen: **${safeResult.skippedCount}**`
           : "";
 
         return interaction
           .editReply(
             `Muzik kuyruga eklendi.\n` +
-            `- Ilk sarki: **${result.firstAdded?.title || "Bilinmeyen"}**` +
+            `- Ilk sarki: **${safeResult.firstAdded?.title || "Bilinmeyen"}**` +
             `${playlistText}` +
             `${nowPlayingText}` +
             `${skippedText}`
@@ -259,7 +278,11 @@ module.exports = {
             .catch((err) => { globalThis.__airWarnSuppressedError?.(err); });
         }
 
-        const result = await music.skip(client, interaction.guildId, voiceChannel.id);
+        const result = await runWithTimeout(
+          music.skip(client, interaction.guildId, voiceChannel.id),
+          20_000,
+          "Sarki gecme islemi"
+        );
         const voteLine = vote.required
           ? `\nOylama sonucu: **${vote.votes}/${vote.requiredVotes}** onay`
           : "";
@@ -273,21 +296,33 @@ module.exports = {
       }
 
       if (sub === "duraklat") {
-        const result = await music.pause(client, interaction.guildId, voiceChannel.id);
+        const result = await runWithTimeout(
+          music.pause(client, interaction.guildId, voiceChannel.id),
+          20_000,
+          "Duraklatma islemi"
+        );
         return interaction
           .editReply(`Duraklatildi: **${result.current?.title || "Sarki"}**`)
           .catch((err) => { globalThis.__airWarnSuppressedError?.(err); });
       }
 
       if (sub === "devam") {
-        const result = await music.resume(client, interaction.guildId, voiceChannel.id);
+        const result = await runWithTimeout(
+          music.resume(client, interaction.guildId, voiceChannel.id),
+          20_000,
+          "Devam ettirme islemi"
+        );
         return interaction
           .editReply(`Devam ediyor: **${result.current?.title || "Sarki"}**`)
           .catch((err) => { globalThis.__airWarnSuppressedError?.(err); });
       }
 
       if (sub === "durdur") {
-        const result = await music.stop(client, interaction.guildId, voiceChannel.id);
+        const result = await runWithTimeout(
+          music.stop(client, interaction.guildId, voiceChannel.id),
+          20_000,
+          "Muzik durdurma islemi"
+        );
         if (!result?.hadMusic) {
           return interaction.editReply("Durdurulacak aktif muzik yok.").catch((err) => { globalThis.__airWarnSuppressedError?.(err); });
         }
