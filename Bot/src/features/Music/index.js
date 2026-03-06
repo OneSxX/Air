@@ -9,8 +9,15 @@ const {
   getVoiceConnection,
   joinVoiceChannel,
 } = require("@discordjs/voice");
+const { spawn } = require("node:child_process");
 const { ChannelType, PermissionFlagsBits } = require("discord.js");
 const play = require("play-dl");
+let ytdlCore = null;
+try {
+  ytdlCore = require("@distube/ytdl-core");
+} catch {
+  ytdlCore = null;
+}
 
 const MAX_QUEUE_LENGTH = 100;
 const MAX_PLAYLIST_ADD = 20;
@@ -24,6 +31,9 @@ const PLAY_START_RETRY_COUNT = 3;
 const PLAY_START_TIMEOUT_MS = 8_000;
 const PLAY_START_RETRY_WAIT_MS = 1_000;
 const PLAYDL_TIMEOUT_MS = 20_000;
+const YTDL_TIMEOUT_MS = 20_000;
+const YTDLP_TIMEOUT_MS = 20_000;
+const YTDL_HIGH_WATER_MARK = 1 << 24;
 const STATE_LOCK_TIMEOUT_MS = 90_000;
 const STATE_LOCK_STALE_MS = 2 * 60 * 1000;
 const DISCONNECT_REJOIN_ATTEMPTS = 3;
@@ -74,6 +84,19 @@ function formatDuration(totalSeconds) {
     return `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}:${String(ss).padStart(2, "0")}`;
   }
   return `${String(mm).padStart(2, "0")}:${String(ss).padStart(2, "0")}`;
+}
+
+function isLikelyYoutubeUrl(url) {
+  const value = String(url || "").trim();
+  if (!value) return false;
+
+  const ytType = play.yt_validate(value);
+  if (ytType === "video" || ytType === "playlist") return true;
+  return /(?:youtube\.com|youtu\.be)/i.test(value);
+}
+
+function getYoutubeCookieHeader() {
+  return String(process.env.YOUTUBE_COOKIE || "").trim();
 }
 
 function buildTrack(video, requesterId) {
@@ -687,17 +710,135 @@ async function resolveTracks(query, requesterId) {
 }
 
 async function createResourceFromTrack(track) {
-  const stream = await withTimeout(
-    play.stream(track.url, {
-      discordPlayerCompatibility: true,
-    }),
-    PLAYDL_TIMEOUT_MS,
-    "Ses akisi"
-  );
+  const errors = [];
 
-  return createAudioResource(stream.stream, {
-    inputType: stream.type || StreamType.Arbitrary,
-  });
+  try {
+    const stream = await withTimeout(
+      play.stream(track.url, {
+        discordPlayerCompatibility: true,
+      }),
+      PLAYDL_TIMEOUT_MS,
+      "Ses akisi"
+    );
+
+    return createAudioResource(stream.stream, {
+      inputType: stream.type || StreamType.Arbitrary,
+    });
+  } catch (err) {
+    errors.push(`play-dl: ${err?.message || "bilinmeyen"}`);
+  }
+
+  if (!isLikelyYoutubeUrl(track?.url)) {
+    throw new Error(`Ses akisi alinamadi. ${errors.join(" | ")}`);
+  }
+
+  if (ytdlCore) {
+    try {
+      const cookieHeader = getYoutubeCookieHeader();
+      const requestOptions = cookieHeader
+        ? { headers: { cookie: cookieHeader } }
+        : undefined;
+
+      const ytdlStream = await withTimeout(
+        Promise.resolve(
+          ytdlCore(String(track.url), {
+            filter: "audioonly",
+            quality: "highestaudio",
+            highWaterMark: YTDL_HIGH_WATER_MARK,
+            dlChunkSize: 0,
+            requestOptions,
+          })
+        ),
+        YTDL_TIMEOUT_MS,
+        "ytdl ses akisi"
+      );
+
+      return createAudioResource(ytdlStream, {
+        inputType: StreamType.Arbitrary,
+      });
+    } catch (err) {
+      errors.push(`ytdl-core: ${err?.message || "bilinmeyen"}`);
+    }
+  } else {
+    errors.push("ytdl-core: paket kurulu degil");
+  }
+
+  try {
+    const ytdlpPath = String(process.env.YTDLP_PATH || "yt-dlp").trim() || "yt-dlp";
+    const cookieHeader = getYoutubeCookieHeader();
+
+    const ytdlpStream = await new Promise((resolve, reject) => {
+      const args = [
+        String(track.url),
+        "-o", "-",
+        "-f", "bestaudio",
+        "--no-playlist",
+        "--quiet",
+        "--no-warnings",
+      ];
+      if (cookieHeader) args.push("--add-header", `Cookie:${cookieHeader}`);
+
+      const child = spawn(ytdlpPath, args, {
+        stdio: ["ignore", "pipe", "pipe"],
+      });
+
+      let settled = false;
+      let stderrTail = "";
+      const timer = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        try {
+          child.kill("SIGKILL");
+        } catch {}
+        reject(new Error("yt-dlp ses akisi zaman asimina ugradi."));
+      }, YTDLP_TIMEOUT_MS);
+
+      const fail = (reason) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        try {
+          child.kill("SIGKILL");
+        } catch {}
+        reject(new Error(reason));
+      };
+
+      child.once("error", (err) => {
+        fail(`yt-dlp calistirilamadi: ${err?.message || "bilinmeyen"}`);
+      });
+
+      child.stderr.on("data", (buf) => {
+        const chunk = String(buf || "");
+        stderrTail = `${stderrTail}${chunk}`.slice(-1000);
+      });
+
+      child.stdout.once("readable", () => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        resolve(child.stdout);
+      });
+
+      child.once("exit", (code) => {
+        if (settled) return;
+        const lastLine = stderrTail
+          .split(/\r?\n/)
+          .map((x) => x.trim())
+          .filter(Boolean)
+          .pop();
+        const detail = lastLine || `cikis kodu: ${code ?? "?"}`;
+        fail(`yt-dlp hata verdi (${detail})`);
+      });
+    });
+
+    return createAudioResource(ytdlpStream, {
+      inputType: StreamType.Arbitrary,
+    });
+  } catch (err) {
+    errors.push(`yt-dlp: ${err?.message || "bilinmeyen"}`);
+  }
+
+  throw new Error(`Ses akisi alinamadi. ${errors.join(" | ")}`);
 }
 
 async function sendToTextChannel(state, content) {

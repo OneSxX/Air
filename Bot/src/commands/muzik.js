@@ -46,6 +46,12 @@ function mapMusicError(err) {
   if (lower.includes("ffmpeg")) {
     return "FFmpeg eksik gorunuyor. VPS'e ffmpeg kurmalisin.";
   }
+  if (lower.includes("yt-dlp") && lower.includes("calistirilamadi")) {
+    return "yt-dlp bulunamadi. VPS'e `yt-dlp` kur veya YTDLP_PATH tanimla.";
+  }
+  if (lower.includes("ses akisi alinamadi")) {
+    return "Ses akisi alinamadi. YouTube erisimi veya cookie ayarlarini kontrol et.";
+  }
 
   return raw.slice(0, 220);
 }
