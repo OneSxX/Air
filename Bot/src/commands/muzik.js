@@ -26,6 +26,27 @@ function formatTrackLine(track, index) {
   return `${index + 1}. **${track.title}** \`[${track.durationText}]\``;
 }
 
+function mapMusicError(err) {
+  const raw = String(err?.message || err || "").trim();
+  const lower = raw.toLowerCase();
+
+  if (!raw) return "Bilinmeyen hata.";
+  if (lower.includes("client network socket disconnected")) {
+    return "Sunucu YouTube'a baglanamadi. VPS agini kontrol et.";
+  }
+  if (lower.includes("status code: 429") || lower.includes("too many requests")) {
+    return "YouTube istek limiti asildi. YOUTUBE_COOKIE tanimlayip tekrar dene.";
+  }
+  if (lower.includes("sign in to confirm") || lower.includes("confirm your age")) {
+    return "YouTube erisim engeli var. .env dosyasina YOUTUBE_COOKIE eklenmeli.";
+  }
+  if (lower.includes("ffmpeg")) {
+    return "FFmpeg eksik gorunuyor. VPS'e ffmpeg kurmalisin.";
+  }
+
+  return raw.slice(0, 220);
+}
+
 const SKIP_VOTE_EMOJI = "\u2705";
 const SKIP_VOTE_REQUIRED = 2;
 const SKIP_VOTE_TIMEOUT_MS = 30_000;
@@ -269,12 +290,15 @@ module.exports = {
         .catch((err) => { globalThis.__airWarnSuppressedError?.(err); });
     } catch (err) {
       console.error("muzik command error:", err);
+      const reason = mapMusicError(err);
       if (interaction.deferred || interaction.replied) {
-        return interaction.editReply("Muzik komutunda hata olustu.").catch((err) => { globalThis.__airWarnSuppressedError?.(err); });
+        return interaction
+          .editReply(`Muzik komutunda hata olustu: ${reason}`)
+          .catch((replyErr) => { globalThis.__airWarnSuppressedError?.(replyErr); });
       }
       return interaction
-        .reply({ content: "Muzik komutunda hata olustu.", ephemeral: true })
-        .catch((err) => { globalThis.__airWarnSuppressedError?.(err); });
+        .reply({ content: `Muzik komutunda hata olustu: ${reason}`, ephemeral: true })
+        .catch((replyErr) => { globalThis.__airWarnSuppressedError?.(replyErr); });
     }
   },
 };

@@ -1150,7 +1150,7 @@ function getGlobalCommandsBody() {
     },
     {
       name: "help",
-      description: "Aktif komutlarin yardim listesini DM olarak gonderir.",
+      description: "Tum slash komutlari kategori bazli listeler.",
       type: 1,
     },
     {

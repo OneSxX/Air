@@ -1,6 +1,5 @@
 const { createEmbed } = require("../utils/embed");
 const { getGlobalCommandsBody } = require("../slash/register");
-const { PermissionFlagsBits } = require("discord.js");
 
 const HELP_SECTIONS = [
   {
@@ -9,19 +8,7 @@ const HELP_SECTIONS = [
   },
   {
     title: "Moderasyon Komutlari",
-    names: [
-      "ceza",
-      "mute",
-      "autorol",
-      "bump",
-      "bumpremind",
-      "yedek",
-      "giveaway",
-      "slashsync",
-      "komutoda",
-      "marketyonet",
-      "panic",
-    ],
+    names: ["ceza", "mute", "autorol", "bump", "bumpremind", "yedek", "giveaway", "slashsync", "komutoda", "marketyonet", "panic"],
   },
   {
     title: "Koruma Panelleri",
@@ -48,55 +35,27 @@ const HELP_SECTIONS = [
 const SECTION_BY_NAME = new Map(
   HELP_SECTIONS.flatMap((section) => section.names.map((name) => [name, section.title]))
 );
+
 const SECTION_ORDER_BY_NAME = new Map(
   HELP_SECTIONS.map((section) => [
     section.title,
     new Map(section.names.map((name, idx) => [name, idx])),
   ])
 );
+
 const ACTIVE_COMMANDS_CACHE_TTL_MS = 30_000;
 const activeCommandsCache = new WeakMap();
-
-function toBigIntBits(input) {
-  if (input === null || typeof input === "undefined") return null;
-
-  if (typeof input === "bigint") return input;
-  if (typeof input === "number") {
-    if (!Number.isFinite(input)) return null;
-    return BigInt(Math.trunc(input));
-  }
-  if (typeof input === "string") {
-    const raw = input.trim();
-    if (!raw) return null;
-    try {
-      return BigInt(raw);
-    } catch {
-      return null;
-    }
-  }
-
-  if (typeof input === "object" && typeof input.bitfield !== "undefined") {
-    return toBigIntBits(input.bitfield);
-  }
-
-  return null;
-}
 
 function normalizeCommand(raw) {
   const base = raw?.toJSON ? raw.toJSON() : raw;
   const name = String(base?.name || "").trim().toLowerCase();
   if (!name) return null;
 
-  const defaultMemberPermissions = toBigIntBits(
-    base?.default_member_permissions ?? base?.defaultMemberPermissions ?? null
-  );
-
   return {
     name,
     description: String(base?.description || "").trim(),
     type: Number(base?.type || 1),
     options: Array.isArray(base?.options) ? base.options : [],
-    defaultMemberPermissions,
     dmPermission:
       typeof base?.dm_permission === "boolean"
         ? base.dm_permission
@@ -156,7 +115,11 @@ async function getActiveSlashCommands(client) {
     return fallback;
   }
 
-  const fetched = await (app.commands.fetch() || Promise.resolve(null)).catch((err) => { globalThis.__airWarnSuppressedError?.(err); return null; });
+  const fetched = await (app.commands.fetch() || Promise.resolve(null)).catch((err) => {
+    globalThis.__airWarnSuppressedError?.(err);
+    return null;
+  });
+
   if (!fetched?.size) {
     setCachedActiveCommands(client, fallback);
     return fallback;
@@ -205,9 +168,7 @@ function formatUsageLines(command) {
         .filter((opt) => ![1, 2].includes(Number(opt?.type)))
         .map(optionToken)
         .filter(Boolean);
-      lines.push(
-        `/${name} ${group.name} ${sub.name}${tokens.length ? ` ${tokens.join(" ")}` : ""}`
-      );
+      lines.push(`/${name} ${group.name} ${sub.name}${tokens.length ? ` ${tokens.join(" ")}` : ""}`);
     }
   }
 
@@ -253,36 +214,6 @@ function groupCommandsBySection(commands) {
   return map;
 }
 
-function canViewFullHelp(interaction) {
-  if (!interaction?.guildId) return false;
-  if (interaction?.guild?.ownerId === interaction?.user?.id) return true;
-  return Boolean(
-    interaction.memberPermissions?.has?.(PermissionFlagsBits.Administrator) ||
-      interaction.memberPermissions?.has?.(PermissionFlagsBits.ManageGuild)
-  );
-}
-
-function commandVisibleForMember(command, interaction) {
-  const required = toBigIntBits(command?.defaultMemberPermissions);
-  if (required === null) return true;
-
-  const memberBits = toBigIntBits(interaction?.memberPermissions?.bitfield) ?? 0n;
-  return (memberBits & required) === required;
-}
-
-function commandVisibleInContext(command, interaction) {
-  const inGuild = Boolean(interaction?.guildId);
-  if (!inGuild && command?.dmPermission === false) return false;
-  return true;
-}
-
-function filterCommandsForMember(commands, interaction) {
-  return (Array.isArray(commands) ? commands : []).filter((command) => (
-    commandVisibleInContext(command, interaction) &&
-    commandVisibleForMember(command, interaction)
-  ));
-}
-
 function splitFieldLines(title, lines, maxLen = 1000) {
   const out = [];
   let chunk = [];
@@ -310,8 +241,7 @@ function splitFieldLines(title, lines, maxLen = 1000) {
   }));
 }
 
-function buildHelpEmbeds(commands, userTag, mode) {
-  const isFull = mode === "full";
+function buildHelpEmbeds(commands, userTag) {
   const grouped = groupCommandsBySection(commands);
   const fields = [];
 
@@ -333,19 +263,15 @@ function buildHelpEmbeds(commands, userTag, mode) {
   if (!fields.length) {
     return [
       createEmbed()
-        .setTitle("Yardim Menusu")
+        .setTitle("Air Komut Rehberi")
         .setDescription("Aktif slash komutu bulunamadi."),
     ];
   }
 
-  const listLabel = isFull
-    ? "Sunucu Sahibi / Yetkili Yardim Listesi"
-    : "Sunucu Uyesi Yardim Listesi";
+  const totalCommands = Array.isArray(commands) ? commands.length : 0;
   const baseDescription =
-    "==============================\n" +
-    `${listLabel}\n` +
-    "==============================\n" +
-    `${isFull ? "Bu listede tum komutlar yer alir." : "Bu listede sadece kullanabildigin komutlar yer alir."}\n` +
+    "Tum slash komutlar kategori bazli listelenmistir.\n" +
+    `Toplam komut: **${totalCommands}**\n` +
     "Parametreler: `<zorunlu>` `[opsiyonel]`";
 
   const chunks = [];
@@ -355,8 +281,8 @@ function buildHelpEmbeds(commands, userTag, mode) {
 
   return chunks.map((chunk, idx) => {
     const embed = createEmbed()
-      .setTitle(idx === 0 ? "Yardim Menusu" : `Yardim Menusu (${idx + 1})`)
-      .setDescription(idx === 0 ? baseDescription : "Devam eden komut listesi.")
+      .setTitle(idx === 0 ? "Air Komut Rehberi" : `Air Komut Rehberi (${idx + 1})`)
+      .setDescription(idx === 0 ? baseDescription : "Devam eden komut listesi")
       .addFields(chunk)
       .setTimestamp();
 
@@ -368,21 +294,16 @@ function buildHelpEmbeds(commands, userTag, mode) {
   });
 }
 
-function buildEmergencyHelpEmbeds(userTag, fullView, interaction) {
+function buildEmergencyHelpEmbeds(userTag) {
   const commands = dedupeByName(
     (getGlobalCommandsBody() || [])
       .map(normalizeCommand)
       .filter((cmd) => cmd && cmd.type === 1)
+      .sort((a, b) => a.name.localeCompare(b.name, "tr"))
   );
 
-  const visibleByContext = commands.filter((cmd) => commandVisibleInContext(cmd, interaction));
-  const visible = fullView
-    ? visibleByContext
-    : visibleByContext.filter((cmd) => commandVisibleForMember(cmd, interaction));
-
   const lines = [];
-  const sorted = visible.sort((a, b) => a.name.localeCompare(b.name, "tr"));
-  for (const cmd of sorted) {
+  for (const cmd of commands) {
     const usage = formatUsageLines(cmd)[0] || `/${cmd.name}`;
     lines.push(`- \`${usage}\` -> ${cmd.description || "Aciklama yok."}`);
   }
@@ -390,11 +311,8 @@ function buildEmergencyHelpEmbeds(userTag, fullView, interaction) {
   const content = lines.length ? lines.join("\n") : "- Aktif komut bulunamadi.";
   return [
     createEmbed()
-      .setTitle("Yardim Menusu")
-      .setDescription(
-        `${fullView ? "Yetkili/Sahip" : "Uye"} yardim listesi (guvenli mod)\n` +
-        "=============================="
-      )
+      .setTitle("Air Komut Rehberi")
+      .setDescription("Yardim listesi (guvenli mod)")
       .addFields({
         name: "Komutlar",
         value: content.slice(0, 1000),
@@ -407,70 +325,47 @@ function buildEmergencyHelpEmbeds(userTag, fullView, interaction) {
 
 module.exports = {
   name: "help",
-  description: "Aktif komutlarin yardim listesini DM olarak gonderir.",
+  description: "Tum slash komutlari kategori bazli listeler.",
   async execute(interaction, client) {
     try {
       if (!interaction.deferred && !interaction.replied) {
         await interaction.deferReply({ ephemeral: true });
       }
 
-      const fullView = canViewFullHelp(interaction);
       const userTag = interaction?.user?.tag || interaction?.user?.id || "";
-
       let embeds = [];
+
       try {
         const commands = await getActiveSlashCommands(client);
-        const visibleCommands = fullView
-          ? commands
-          : filterCommandsForMember(commands, interaction);
-        embeds = buildHelpEmbeds(
-          visibleCommands,
-          userTag,
-          fullView ? "full" : "member"
-        );
+        embeds = buildHelpEmbeds(commands, userTag);
       } catch (buildErr) {
         console.error("help list build error:", buildErr);
-        embeds = buildEmergencyHelpEmbeds(userTag, fullView, interaction);
+        embeds = buildEmergencyHelpEmbeds(userTag);
       }
 
-      const sentDm = await interaction.user
-        .send({ embeds })
-        .then(() => true)
-        .catch(() => false);
-
-      if (!sentDm) {
-        return interaction
-          .editReply(
-            "Yardim mesajini DM olarak gonderemedim. DM ayarlarini acip tekrar dene."
-          )
-          .catch((err) => { globalThis.__airWarnSuppressedError?.(err); });
-      }
-
-      const doneText = fullView
-        ? "Yetkili/sahip yardim listesi DM kutuna gonderildi."
-        : "Uye yardim listesi DM kutuna gonderildi.";
-      return interaction
-        .editReply(doneText)
-        .catch((err) => { globalThis.__airWarnSuppressedError?.(err); });
+      return interaction.editReply({ embeds }).catch((err) => {
+        globalThis.__airWarnSuppressedError?.(err);
+      });
     } catch (err) {
       console.error("help command error:", err);
       if (interaction.deferred || interaction.replied) {
         return interaction
           .editReply("Help komutu calisirken hata olustu.")
-          .catch((err) => { globalThis.__airWarnSuppressedError?.(err); });
+          .catch((replyErr) => { globalThis.__airWarnSuppressedError?.(replyErr); });
       }
       return interaction
         .reply({ content: "Help komutu calisirken hata olustu.", ephemeral: true })
-        .catch((err) => { globalThis.__airWarnSuppressedError?.(err); });
+        .catch((replyErr) => { globalThis.__airWarnSuppressedError?.(replyErr); });
     }
   },
   __private: {
     normalizeCommand,
-    commandVisibleForMember,
-    commandVisibleInContext,
-    filterCommandsForMember,
+    formatUsageLines,
+    groupCommandsBySection,
+    buildHelpEmbeds,
     buildEmergencyHelpEmbeds,
     getActiveSlashCommands,
     clearActiveCommandsCache,
   },
 };
+

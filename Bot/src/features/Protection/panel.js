@@ -42,10 +42,6 @@ const APP_EMOJI = {
   Sohbetkoruma_Big: "1479571981593608396",
 };
 
-const ICON_FALLBACK = {
-  ozel_url_bildirim: "🔗",
-};
-
 function e(name, fallback = "", opts = {}) {
   const id = APP_EMOJI[name];
   if (!id) return fallback;
@@ -53,7 +49,7 @@ function e(name, fallback = "", opts = {}) {
   const guild = opts?.guild || null;
   if (guild?.emojis?.cache) {
     const emoji = guild.emojis.cache.get(id);
-    if (!emoji) return fallback;
+    if (!emoji) return `<:${name}:${id}>`;
     const safeName = String(emoji.name || name).trim() || name;
     return emoji.animated ? `<a:${safeName}:${id}>` : `<:${safeName}:${id}>`;
   }
@@ -63,11 +59,7 @@ function e(name, fallback = "", opts = {}) {
 
 function canUseOptionEmoji(id, opts = {}) {
   if (!id) return false;
-  if (opts?.disableOptionEmoji) return false;
-
-  const guild = opts?.guild || null;
-  if (!guild?.emojis?.cache) return true;
-  return guild.emojis.cache.has(id);
+  return !opts?.disableOptionEmoji;
 }
 
 function withEmoji(label, value, emojiName, description, opts = {}) {
@@ -78,18 +70,14 @@ function withEmoji(label, value, emojiName, description, opts = {}) {
   if (canUseOptionEmoji(id, opts)) {
     const guildEmojiName = opts?.guild?.emojis?.cache?.get?.(id)?.name;
     out.emoji = { id, name: guildEmojiName || emojiName };
-    return out;
   }
-
-  const fallback = ICON_FALLBACK[emojiName];
-  if (fallback) out.emoji = { name: fallback };
 
   return out;
 }
 
-const onOff = (on) => (on ? e("toggle_acik", "ON") : e("toggle_kapali", "OFF"));
+const onOff = (on, opts = {}) => (on ? e("toggle_acik", "ON", opts) : e("toggle_kapali", "OFF", opts));
 const line = (iconName, text, on, opts = {}) =>
-  `- ${e(iconName, ICON_FALLBACK[iconName] || "", opts)} **${text}:** ${onOff(on)}`;
+  `- ${e(iconName, "", opts)} **${text}:** ${onOff(on, opts)}`;
 
 function getActorLabel(opts = {}) {
   const actor = opts?.actor || null;

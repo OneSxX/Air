@@ -1,4 +1,4 @@
-const ACTIVITY_TEXT = "/help \u00B7 discord.gg/xAir";
+﻿const ACTIVITY_TEXT = "/help \u00B7 discord.gg/xAir";
 const BIO_PREFIX = "\uFE34";
 const BIO_HEADER = "\u02DA\u2727\u0F3B\u0F3B\u0F3B\u0F3B\u0F3B\u2727\u0F3A\u0F3A\u0F3A\u0F3A\u0F3A\u2727\u02DA";
 
@@ -19,7 +19,7 @@ function buildApplicationDescription(client) {
   return [
     BIO_HEADER,
     `${BIO_PREFIX}Destek i\u00E7in yap\u0131mc\u0131m olan barandqn ile ileti\u015Fime ge\u00E7in.`,
-    `${BIO_PREFIX}${guildCount} Sunucuda aktif \u30FB ${memberCount} Hizmet ediyor`,
+    `${BIO_PREFIX}${guildCount} Sunucuda aktif \u30FB ${memberCount} Kişiye hizmet ediyor`,
     `${BIO_PREFIX}/help`,
     `${BIO_PREFIX}https://discord.gg/xAir`,
   ].join("\n");
@@ -140,3 +140,4 @@ module.exports = {
     }
   },
 };
+

@@ -167,6 +167,7 @@ const MIN_TIMEOUT_MS = 10 * 1000;
 const LINKS_FIXED_WINDOW_SECONDS = 10;
 const MAX_AUTOMOD_EXEMPT_IDS = 50;
 const AUTOMOD_PULL_TIMEOUT_MS = 1200;
+const INTERACTION_CFG_TIMEOUT_MS = 1200;
 const LOGS_CFG_KEY = (gid) => `logs_cfg_${gid}`;
 const LOG_CATEGORY_NAME_FALLBACK = "loglar";
 const REQUIRED_LOG_EXEMPT_RULES = new Set(["links", "invite", "profanity"]);
@@ -790,6 +791,14 @@ function mergeMandatoryChannelId(channelIds, mandatoryId, max = MAX_AUTOMOD_EXEM
   return out.slice(0, max);
 }
 
+async function getConfigQuick(db, guildId, timeoutMs = INTERACTION_CFG_TIMEOUT_MS) {
+  const fallback = new Promise((resolve) => {
+    setTimeout(() => resolve(null), Math.max(100, Number(timeoutMs) || INTERACTION_CFG_TIMEOUT_MS));
+  });
+  const cfg = await Promise.race([getConfig(db, guildId), fallback]).catch(() => null);
+  return cfg && typeof cfg === "object" ? cfg : { toggles: {} };
+}
+
 async function resolveLogsCategoryId(interaction, client) {
   const guild =
     interaction?.guild ||
@@ -1080,6 +1089,10 @@ function getAutoModSyncNote(result) {
 async function applyToggle(interaction, client, key, nextValue) {
   if (!TOGGLE_KEYS.has(key)) return null;
 
+  if (!interaction.deferred && !interaction.replied) {
+    await (interaction.deferUpdate() || Promise.resolve()).catch((err) => { globalThis.__airWarnSuppressedError?.(err); });
+  }
+
   const gid = interaction.guildId;
   let merged = await setConfig(client.db, gid, { toggles: { [key]: nextValue } });
 
@@ -1105,10 +1118,6 @@ async function applyToggle(interaction, client, key, nextValue) {
     merged = sync?.cfg || merged;
   }
 
-  if (!interaction.deferred && !interaction.replied) {
-    await (interaction.deferUpdate() || Promise.resolve()).catch((err) => { globalThis.__airWarnSuppressedError?.(err); });
-  }
-
   await refreshPanels(interaction, client, merged);
   return merged;
 }
@@ -1121,10 +1130,14 @@ async function handleToggle(interaction, client, key) {
 }
 
 async function disableFromButton(interaction, client, key, label) {
+  if (!interaction.deferred && !interaction.replied) {
+    await (interaction.deferUpdate() || Promise.resolve()).catch((err) => { globalThis.__airWarnSuppressedError?.(err); });
+  }
+
   const cfg = await getConfig(client.db, interaction.guildId);
 
   if (!cfg?.toggles?.[key]) {
-    await (interaction.update({ content: `${label} zaten kapalı.`, components: [] }) || Promise.resolve()).catch((err) => { globalThis.__airWarnSuppressedError?.(err); });
+    await (interaction.editReply({ content: `${label} zaten kapalı.`, components: [] }) || Promise.resolve()).catch((err) => { globalThis.__airWarnSuppressedError?.(err); });
     return true;
   }
 
@@ -1146,7 +1159,7 @@ async function disableFromButton(interaction, client, key, label) {
     merged = sync?.cfg || merged;
   }
 
-  await (interaction.update({ content: `${label} kapatıldı.`, components: [] }) || Promise.resolve()).catch((err) => { globalThis.__airWarnSuppressedError?.(err); });
+  await (interaction.editReply({ content: `${label} kapatıldı.`, components: [] }) || Promise.resolve()).catch((err) => { globalThis.__airWarnSuppressedError?.(err); });
   await refreshPanels(interaction, client, merged);
   return true;
 }
@@ -1183,8 +1196,7 @@ async function promptDisable(interaction, content, customId, buttonLabel, opts =
 
 async function openChatSettingsModalForKey(interaction, client, key) {
   if (!CHAT_TIMEOUT_KEYS.has(key)) return false;
-  let cfg = await getConfig(client.db, interaction.guildId);
-  cfg = await pullAutoModExemptsByKeyFast(interaction, client, cfg, key).catch(() => cfg);
+  let cfg = await getConfigQuick(client.db, interaction.guildId);
   if (key === "caps") {
     return openCapsSettingsModal(interaction, cfg, { zeroDefaults: false });
   }
@@ -1196,8 +1208,7 @@ async function handleChatToggleSelect(interaction, client, key) {
 
   if (key === "caps") return handleCapsSelect(interaction, client);
 
-  let cfg = await getConfig(client.db, interaction.guildId);
-  cfg = await pullAutoModExemptsByKeyFast(interaction, client, cfg, key).catch(() => cfg);
+  let cfg = await getConfigQuick(client.db, interaction.guildId);
   if (cfg?.toggles?.[key]) {
     const btn = CHAT_DISABLE_BUTTONS[key];
     return promptDisable(
@@ -1279,7 +1290,7 @@ async function openCapsSettingsModal(interaction, cfg, opts = {}) {
 }
 
 async function handleCapsSelect(interaction, client) {
-  const cfg = await getConfig(client.db, interaction.guildId);
+  const cfg = await getConfigQuick(client.db, interaction.guildId);
   const hasSavedCapsConfig =
     Number.isFinite(Number(cfg?.caps?.minLetters)) &&
     Number.isFinite(Number(cfg?.caps?.ratio));
@@ -3015,6 +3026,10 @@ async function handleExemptSelect(interaction, client) {
 }
 
 async function takeManualSnapshot(interaction, client) {
+  if (!interaction.deferred && !interaction.replied) {
+    await (interaction.deferUpdate() || Promise.resolve()).catch((err) => { globalThis.__airWarnSuppressedError?.(err); });
+  }
+
   const gid = interaction.guildId;
   const cfg = await getConfig(client.db, gid);
   const guild = interaction.guild;
@@ -3022,10 +3037,6 @@ async function takeManualSnapshot(interaction, client) {
 
   cfg.snapshots = buildSnapshotsFromGuild(guild);
   await client.db.set(`prot_cfg_${gid}`, cfg);
-
-  if (!interaction.deferred && !interaction.replied) {
-    await (interaction.deferUpdate() || Promise.resolve()).catch((err) => { globalThis.__airWarnSuppressedError?.(err); });
-  }
 
   await refreshPanels(interaction, client, cfg);
   await interaction.followUp({
@@ -3049,6 +3060,7 @@ async function handleLimitUI(interaction, client) {
   if (!interaction.guildId) return false;
   if (!isProtectionCustomId(interaction.customId)) return false;
 
+  try {
   if (!isAdmin(interaction)) {
     if (!interaction.replied && !interaction.deferred) {
       await interaction.reply({
@@ -3060,6 +3072,10 @@ async function handleLimitUI(interaction, client) {
   }
 
   if (interaction.isButton() && interaction.customId === "prot:all:setup") {
+    if (!interaction.deferred && !interaction.replied) {
+      await (interaction.deferUpdate() || Promise.resolve()).catch((err) => { globalThis.__airWarnSuppressedError?.(err); });
+    }
+
     const gid = interaction.guildId;
     const patch = { toggles: {} };
     for (const k of TOGGLE_KEYS) patch.toggles[k] = true;
@@ -3078,15 +3094,15 @@ async function handleLimitUI(interaction, client) {
     const mentionsSync = await syncMentionsAutoModWithConfig(interaction, client, merged);
     merged = mentionsSync?.cfg || merged;
 
-    if (!interaction.deferred && !interaction.replied) {
-      await (interaction.deferUpdate() || Promise.resolve()).catch((err) => { globalThis.__airWarnSuppressedError?.(err); });
-    }
-
     await refreshPanels(interaction, client, merged);
     return true;
   }
 
   if (interaction.isButton() && interaction.customId === "prot:all:disable") {
+    if (!interaction.deferred && !interaction.replied) {
+      await (interaction.deferUpdate() || Promise.resolve()).catch((err) => { globalThis.__airWarnSuppressedError?.(err); });
+    }
+
     const gid = interaction.guildId;
     const patch = { toggles: {} };
     for (const k of TOGGLE_KEYS) patch.toggles[k] = false;
@@ -3100,10 +3116,6 @@ async function handleLimitUI(interaction, client) {
     merged = profanitySync?.cfg || merged;
     const mentionsSync = await syncMentionsAutoModWithConfig(interaction, client, merged);
     merged = mentionsSync?.cfg || merged;
-
-    if (!interaction.deferred && !interaction.replied) {
-      await (interaction.deferUpdate() || Promise.resolve()).catch((err) => { globalThis.__airWarnSuppressedError?.(err); });
-    }
 
     await refreshPanels(interaction, client, merged);
     return true;
@@ -3319,7 +3331,22 @@ async function handleLimitUI(interaction, client) {
     return handleExemptSelect(interaction, client);
   }
 
+  if (!interaction.deferred && !interaction.replied && !interaction.isModalSubmit()) {
+    await (interaction.deferUpdate() || Promise.resolve()).catch((err) => { globalThis.__airWarnSuppressedError?.(err); });
+    return true;
+  }
+
   return false;
+  } catch (err) {
+    console.error("[Protection handleLimitUI]", err);
+    const payload = { content: "Koruma etkilesiminde hata olustu.", ephemeral: true };
+    if (!interaction.deferred && !interaction.replied) {
+      await (interaction.reply(payload) || Promise.resolve()).catch((e) => { globalThis.__airWarnSuppressedError?.(e); });
+    } else {
+      await (interaction.followUp(payload) || Promise.resolve()).catch((e) => { globalThis.__airWarnSuppressedError?.(e); });
+    }
+    return true;
+  }
 }
 
 module.exports = {

@@ -884,7 +884,20 @@ async function onVoiceStateUpdate(oldState, newState, client) {
   });
 }
 
-function init() {}
+function init() {
+  const youtubeCookie = String(process.env.YOUTUBE_COOKIE || "").trim();
+  if (!youtubeCookie || typeof play?.setToken !== "function") return;
+
+  try {
+    play.setToken({
+      youtube: {
+        cookie: youtubeCookie,
+      },
+    });
+  } catch (err) {
+    console.warn("Music youtube cookie set hatasi:", err?.message || err);
+  }
+}
 
 module.exports = {
   init,
