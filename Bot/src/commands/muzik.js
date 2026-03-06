@@ -64,6 +64,12 @@ function mapMusicError(err) {
   if (lower.includes("invalid onerror method")) {
     return "Akim katmani uyumsuzlugu olustu. Bot guncellendi, VPS'te `npm install` ve `pm2 restart air-bot` yap.";
   }
+  if (lower.includes("requested format is not available")) {
+    return "Bu video formatlari kullanilamiyor. yt-dlp guncellemesi gerekli: `yt-dlp -U`";
+  }
+  if (lower.includes("yt-dlp tum format denemelerinde basarisiz")) {
+    return "yt-dlp tum format denemelerinde basarisiz oldu. yt-dlp'yi guncelleyip tekrar dene.";
+  }
   if (lower.includes("yt-dlp") && lower.includes("calistirilamadi")) {
     return "yt-dlp bulunamadi. VPS'e `yt-dlp` kur veya YTDLP_PATH tanimla.";
   }

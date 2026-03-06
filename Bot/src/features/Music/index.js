@@ -739,16 +739,16 @@ async function createResourceFromTrack(track) {
     const ytdlpPath = String(process.env.YTDLP_PATH || "yt-dlp").trim() || "yt-dlp";
     const ffmpegPath = getFfmpegPath();
     const cookieHeader = getYoutubeCookieHeader();
-
-    return new Promise((resolve, reject) => {
+    const runPipeline = (formatExpr) => new Promise((resolve, reject) => {
       const args = [
         String(track.url),
         "-o", "-",
-        "-f", "bestaudio",
         "--no-playlist",
         "--quiet",
         "--no-warnings",
+        "--extractor-args", "youtube:player_client=android,web,mweb",
       ];
+      if (formatExpr) args.push("-f", formatExpr);
       if (cookieHeader) args.push("--add-header", `Cookie:${cookieHeader}`);
 
       const ytdlp = spawn(ytdlpPath, args, {
@@ -848,6 +848,23 @@ async function createResourceFromTrack(track) {
         fail(`ffmpeg hata verdi (${detail})`);
       });
     });
+
+    const formatCandidates = [
+      "bestaudio[ext=webm]/bestaudio/best",
+      "bestaudio/best",
+      "ba/b",
+      "",
+    ];
+    const attemptErrors = [];
+    for (const formatExpr of formatCandidates) {
+      try {
+        return await runPipeline(formatExpr);
+      } catch (err) {
+        const label = formatExpr || "default";
+        attemptErrors.push(`${label}: ${err?.message || "bilinmeyen"}`);
+      }
+    }
+    throw new Error(`yt-dlp tum format denemelerinde basarisiz: ${attemptErrors.join(" | ")}`);
   };
 
   // YouTube kaynaklarda once yt-dlp dene (play-dl/undici uyumsuzluklarini bypass eder).
