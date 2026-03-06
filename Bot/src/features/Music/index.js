@@ -900,6 +900,7 @@ async function createResourceFromTrack(track) {
     try {
       return await tryYtdlp();
     } catch (err) {
+      console.error("[music] ytdlp stream error:", err?.stack || err?.message || err);
       errors.push(`yt-dlp: ${err?.message || "bilinmeyen"}`);
       throw new Error(`Ses akisi alinamadi. ${errors.join(" | ")}`);
     }
@@ -976,6 +977,10 @@ async function playNext(state) {
       started = true;
       break;
     } catch (err) {
+      console.error(
+        `[music] play attempt ${attempt}/${PLAY_START_RETRY_COUNT} failed for "${next?.title || "unknown"}":`,
+        err?.stack || err?.message || err
+      );
       lastErr = err;
       if (attempt < PLAY_START_RETRY_COUNT) {
         await sleep(PLAY_START_RETRY_WAIT_MS * attempt);
