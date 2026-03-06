@@ -554,11 +554,15 @@ async function resolveTracks(query, requesterId) {
   if (spotify) {
     const spotifyTracks = await resolveSpotifyTracks(spotify);
     if (!spotifyTracks.length) {
+      // Spotify metadata alinamazsa URL'nin kendisiyle YouTube aramasi yap.
+      const fallbackTrack = await searchYoutubeFromText(q, requesterId);
+      if (fallbackTrack?.url) return [fallbackTrack];
+
       if (spotify.type === "track") {
         throw new Error("Spotify sarki bilgisi alinamadi.");
       }
       throw new Error(
-        "Spotify playlist/album icin SPOTIFY_CLIENT_ID ve SPOTIFY_CLIENT_SECRET ayarlanmis olmali."
+        "Spotify playlist/album acilamadi. SPOTIFY_CLIENT_ID ve SPOTIFY_CLIENT_SECRET tanimlayip tekrar dene."
       );
     }
 
