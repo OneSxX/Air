@@ -760,7 +760,11 @@ async function createResourceFromTrack(track) {
           "-hide_banner",
           "-loglevel", "error",
           "-i", "pipe:0",
-          "-f", "s16le",
+          "-c:a", "libopus",
+          "-b:a", "128k",
+          "-application", "audio",
+          "-frame_duration", "20",
+          "-f", "ogg",
           "-ar", "48000",
           "-ac", "2",
           "pipe:1",
@@ -822,7 +826,11 @@ async function createResourceFromTrack(track) {
         const pcmStream = ffmpeg.stdout;
         pcmStream.once("close", () => stopChildren());
         pcmStream.once("end", () => stopChildren());
-        resolve(createAudioResource(pcmStream, { inputType: StreamType.Raw }));
+        try {
+          resolve(createAudioResource(pcmStream, { inputType: StreamType.OggOpus }));
+        } catch (err) {
+          fail(`audio resource olusturulamadi: ${err?.message || "bilinmeyen"}`);
+        }
       });
 
       ytdlp.once("exit", (code) => {
