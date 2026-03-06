@@ -609,6 +609,20 @@ async function ensureVoiceConnection(state, voiceChannel) {
   }
 
   if (!ready) {
+    const me = guild.members?.me ||
+      await (guild.members.fetchMe() || Promise.resolve(null)).catch((err) => { globalThis.__airWarnSuppressedError?.(err); return null; });
+    const botJoinedSameChannel = String(me?.voice?.channelId || "") === String(voiceChannel.id);
+
+    // Bazi ortamlarda Ready gec geliyor (ozellikle signalling/connecting'de).
+    // Bot fiilen ayni ses kanalina girdiyse tamamen hata vermek yerine devam et.
+    if (botJoinedSameChannel &&
+      (lastStatus === VoiceConnectionStatus.Signalling || lastStatus === VoiceConnectionStatus.Connecting)) {
+      connection.subscribe(state.player);
+      state.connection = connection;
+      state.voiceChannelId = voiceChannel.id;
+      return;
+    }
+
     try {
       connection.destroy();
     } catch {}
@@ -936,6 +950,9 @@ async function validateJoinPermissions(voiceChannel) {
   if (![ChannelType.GuildVoice, ChannelType.GuildStageVoice].includes(voiceChannel.type)) {
     throw new Error("Bu kanal turunde muzik calinamaz.");
   }
+  if (voiceChannel.type === ChannelType.GuildStageVoice) {
+    throw new Error("Sahne kanalinda muzik calma desteklenmiyor. Normal bir ses kanalina gec.");
+  }
 
   const me = voiceChannel.guild.members?.me ||
     await (voiceChannel.guild.members.fetchMe() || Promise.resolve(null)).catch((err) => { globalThis.__airWarnSuppressedError?.(err); return null; });
@@ -950,6 +967,11 @@ async function validateJoinPermissions(voiceChannel) {
   }
   if (!perms?.has?.(PermissionFlagsBits.Speak)) {
     throw new Error("Botun ses kanalinda konusma izni yok.");
+  }
+  const userLimit = Number(voiceChannel.userLimit || 0);
+  const isFull = userLimit > 0 && Number(voiceChannel.members?.size || 0) >= userLimit;
+  if (isFull && !perms?.has?.(PermissionFlagsBits.MoveMembers)) {
+    throw new Error("Ses kanali dolu. Botun girmesi icin bos yer ac veya Move Members izni ver.");
   }
 }
 
