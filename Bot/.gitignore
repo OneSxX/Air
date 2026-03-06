@@ -6,7 +6,7 @@ json.sqlite
 *.sqlite-shm
 *.sqlite-wal
 backups/
-logs/
+/logs/
 *.log
 .DS_Store
 Thumbs.db
