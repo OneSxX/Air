@@ -31,6 +31,9 @@ function mapMusicError(err) {
   const lower = raw.toLowerCase();
 
   if (!raw) return "Bilinmeyen hata.";
+  if (lower.includes("zaman asimina ugradi")) {
+    return "Muzik servisi zaman asimina ugradi. Kisa bir sure sonra tekrar dene.";
+  }
   if (lower.includes("client network socket disconnected")) {
     return "Sunucu YouTube'a baglanamadi. VPS agini kontrol et.";
   }

@@ -23,6 +23,9 @@ const READY_RETRY_WAIT_MS = 2_000;
 const PLAY_START_RETRY_COUNT = 3;
 const PLAY_START_TIMEOUT_MS = 8_000;
 const PLAY_START_RETRY_WAIT_MS = 1_000;
+const PLAYDL_TIMEOUT_MS = 20_000;
+const STATE_LOCK_TIMEOUT_MS = 90_000;
+const STATE_LOCK_STALE_MS = 2 * 60 * 1000;
 const DISCONNECT_REJOIN_ATTEMPTS = 3;
 const DISCONNECT_REJOIN_WAIT_MS = 2_000;
 const SPOTIFY_TOKEN_REFRESH_GUARD_MS = 60_000;
@@ -44,6 +47,21 @@ function normalizeQuery(input) {
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, Math.max(0, Number(ms || 0))));
+}
+
+async function withTimeout(promise, timeoutMs, label = "Islem") {
+  let timer = null;
+  const timeoutPromise = new Promise((_, reject) => {
+    timer = setTimeout(() => {
+      reject(new Error(`${label} zaman asimina ugradi.`));
+    }, Math.max(500, Number(timeoutMs) || 0));
+  });
+
+  try {
+    return await Promise.race([promise, timeoutPromise]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
 }
 
 function formatDuration(totalSeconds) {
@@ -192,10 +210,14 @@ function buildSpotifySearchQuery(meta) {
 }
 
 async function searchYoutubeFromText(query, requesterId) {
-  const search = await play.search(query, {
-    limit: 5,
-    source: { youtube: "video" },
-  }).catch(() => []);
+  const search = await withTimeout(
+    play.search(query, {
+      limit: 5,
+      source: { youtube: "video" },
+    }),
+    PLAYDL_TIMEOUT_MS,
+    "YouTube aramasi"
+  ).catch(() => []);
 
   const first = Array.isArray(search) ? search.find((x) => x?.url) : null;
   const track = first ? buildTrack(first, requesterId) : null;
@@ -338,6 +360,7 @@ function createEmptyState(client, guildId) {
     current: null,
     idleTimer: null,
     lock: Promise.resolve(),
+    lockStartedAt: 0,
     reconnecting: false,
   };
 
@@ -381,9 +404,25 @@ function getState(client, guildId) {
 }
 
 function withStateLock(state, task) {
+  if (Number(state.lockStartedAt || 0) > 0 && (Date.now() - Number(state.lockStartedAt || 0)) > STATE_LOCK_STALE_MS) {
+    state.lock = Promise.resolve();
+    state.lockStartedAt = 0;
+  }
+
   const run = (state.lock || Promise.resolve())
     .catch((err) => { globalThis.__airWarnSuppressedError?.(err); })
-    .then(task);
+    .then(async () => {
+      state.lockStartedAt = Date.now();
+      try {
+        return await withTimeout(
+          Promise.resolve().then(task),
+          STATE_LOCK_TIMEOUT_MS,
+          "Muzik islemi"
+        );
+      } finally {
+        state.lockStartedAt = 0;
+      }
+    });
   state.lock = run.catch((err) => { globalThis.__airWarnSuppressedError?.(err); });
   return run;
 }
@@ -598,17 +637,29 @@ async function resolveTracks(query, requesterId) {
 
   const ytType = play.yt_validate(q);
   if (ytType === "video") {
-    const info = await (play.video_info(q) || Promise.resolve(null)).catch((err) => { globalThis.__airWarnSuppressedError?.(err); return null; });
+    const info = await withTimeout(
+      play.video_info(q),
+      PLAYDL_TIMEOUT_MS,
+      "YouTube video bilgisi"
+    ).catch((err) => { globalThis.__airWarnSuppressedError?.(err); return null; });
     const track = info?.video_details ? buildTrack(info.video_details, requesterId) : null;
     if (!track?.url) throw new Error("Video bilgisi alinamadi.");
     return [track];
   }
 
   if (ytType === "playlist") {
-    const playlist = await (play.playlist_info(q, { incomplete: true }) || Promise.resolve(null)).catch((err) => { globalThis.__airWarnSuppressedError?.(err); return null; });
+    const playlist = await withTimeout(
+      play.playlist_info(q, { incomplete: true }),
+      PLAYDL_TIMEOUT_MS,
+      "YouTube playlist bilgisi"
+    ).catch((err) => { globalThis.__airWarnSuppressedError?.(err); return null; });
     if (!playlist) throw new Error("Playlist bilgisi alinamadi.");
 
-    const videos = await playlist.all_videos().catch(() => []);
+    const videos = await withTimeout(
+      playlist.all_videos(),
+      PLAYDL_TIMEOUT_MS,
+      "YouTube playlist videolari"
+    ).catch(() => []);
     const tracks = [];
     for (const video of videos) {
       const track = buildTrack(video, requesterId);
@@ -620,10 +671,14 @@ async function resolveTracks(query, requesterId) {
     return tracks;
   }
 
-  const search = await play.search(q, {
-    limit: 1,
-    source: { youtube: "video" },
-  }).catch(() => []);
+  const search = await withTimeout(
+    play.search(q, {
+      limit: 1,
+      source: { youtube: "video" },
+    }),
+    PLAYDL_TIMEOUT_MS,
+    "YouTube aramasi"
+  ).catch(() => []);
 
   const first = Array.isArray(search) ? search[0] : null;
   const track = first ? buildTrack(first, requesterId) : null;
@@ -632,9 +687,13 @@ async function resolveTracks(query, requesterId) {
 }
 
 async function createResourceFromTrack(track) {
-  const stream = await play.stream(track.url, {
-    discordPlayerCompatibility: true,
-  });
+  const stream = await withTimeout(
+    play.stream(track.url, {
+      discordPlayerCompatibility: true,
+    }),
+    PLAYDL_TIMEOUT_MS,
+    "Ses akisi"
+  );
 
   return createAudioResource(stream.stream, {
     inputType: stream.type || StreamType.Arbitrary,
