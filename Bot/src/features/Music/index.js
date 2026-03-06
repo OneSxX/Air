@@ -25,9 +25,9 @@ const PLAY_START_RETRY_COUNT = 3;
 const PLAY_START_TIMEOUT_MS = 6_000;
 const PLAY_START_RETRY_WAIT_MS = 1_000;
 const PLAYDL_TIMEOUT_MS = 12_000;
-const YTDLP_TIMEOUT_MS = 15_000;
-const STATE_LOCK_TIMEOUT_MS = 35_000;
-const STATE_LOCK_STALE_MS = 40_000;
+const YTDLP_TIMEOUT_MS = 25_000;
+const STATE_LOCK_TIMEOUT_MS = 120_000;
+const STATE_LOCK_STALE_MS = 2 * 60 * 1000;
 const DISCONNECT_REJOIN_ATTEMPTS = 3;
 const DISCONNECT_REJOIN_WAIT_MS = 2_000;
 const SPOTIFY_TOKEN_REFRESH_GUARD_MS = 60_000;
@@ -727,27 +727,7 @@ async function resolveTracks(query, requesterId) {
 async function createResourceFromTrack(track) {
   const errors = [];
 
-  try {
-    const stream = await withTimeout(
-      play.stream(track.url, {
-        discordPlayerCompatibility: true,
-      }),
-      PLAYDL_TIMEOUT_MS,
-      "Ses akisi"
-    );
-
-    return createAudioResource(stream.stream, {
-      inputType: stream.type || StreamType.Arbitrary,
-    });
-  } catch (err) {
-    errors.push(`play-dl: ${err?.message || "bilinmeyen"}`);
-  }
-
-  if (!isLikelyYoutubeUrl(track?.url)) {
-    throw new Error(`Ses akisi alinamadi. ${errors.join(" | ")}`);
-  }
-
-  try {
+  const tryYtdlp = async () => {
     const ytdlpPath = String(process.env.YTDLP_PATH || "yt-dlp").trim() || "yt-dlp";
     const cookieHeader = getYoutubeCookieHeader();
 
@@ -818,8 +798,42 @@ async function createResourceFromTrack(track) {
     return createAudioResource(ytdlpStream, {
       inputType: StreamType.Arbitrary,
     });
+  };
+
+  // YouTube kaynaklarda once yt-dlp dene (play-dl/undici uyumsuzluklarini bypass eder).
+  if (isLikelyYoutubeUrl(track?.url)) {
+    try {
+      return await tryYtdlp();
+    } catch (err) {
+      errors.push(`yt-dlp: ${err?.message || "bilinmeyen"}`);
+    }
+  }
+
+  try {
+    const stream = await withTimeout(
+      play.stream(track.url, {
+        discordPlayerCompatibility: true,
+      }),
+      PLAYDL_TIMEOUT_MS,
+      "Ses akisi"
+    );
+
+    return createAudioResource(stream.stream, {
+      inputType: stream.type || StreamType.Arbitrary,
+    });
   } catch (err) {
-    errors.push(`yt-dlp: ${err?.message || "bilinmeyen"}`);
+    errors.push(`play-dl: ${err?.message || "bilinmeyen"}`);
+  }
+
+  if (!isLikelyYoutubeUrl(track?.url)) {
+    throw new Error(`Ses akisi alinamadi. ${errors.join(" | ")}`);
+  }
+
+  // YouTube icin ilk deneme yt-dlp ise ve fail olduysa play-dl'den sonra bir kez daha dene.
+  try {
+    return await tryYtdlp();
+  } catch (err) {
+    errors.push(`yt-dlp-2: ${err?.message || "bilinmeyen"}`);
   }
 
   throw new Error(`Ses akisi alinamadi. ${errors.join(" | ")}`);
