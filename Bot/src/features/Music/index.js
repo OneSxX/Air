@@ -91,6 +91,14 @@ function getYoutubeCookieHeader() {
   return String(process.env.YOUTUBE_COOKIE || "").trim();
 }
 
+function getFfmpegPath() {
+  return String(process.env.FFMPEG_PATH || "ffmpeg").trim() || "ffmpeg";
+}
+
+function tailText(input, max = 1000) {
+  return String(input || "").slice(-Math.max(100, Number(max) || 1000));
+}
+
 function buildTrack(video, requesterId) {
   const durationInSec = Number(video?.durationInSec || 0);
   const durationText = String(video?.durationRaw || "").trim() || formatDuration(durationInSec);
@@ -729,9 +737,10 @@ async function createResourceFromTrack(track) {
 
   const tryYtdlp = async () => {
     const ytdlpPath = String(process.env.YTDLP_PATH || "yt-dlp").trim() || "yt-dlp";
+    const ffmpegPath = getFfmpegPath();
     const cookieHeader = getYoutubeCookieHeader();
 
-    const ytdlpStream = await new Promise((resolve, reject) => {
+    return new Promise((resolve, reject) => {
       const args = [
         String(track.url),
         "-o", "-",
@@ -742,50 +751,84 @@ async function createResourceFromTrack(track) {
       ];
       if (cookieHeader) args.push("--add-header", `Cookie:${cookieHeader}`);
 
-      const child = spawn(ytdlpPath, args, {
+      const ytdlp = spawn(ytdlpPath, args, {
         stdio: ["ignore", "pipe", "pipe"],
       });
+      const ffmpeg = spawn(
+        ffmpegPath,
+        [
+          "-hide_banner",
+          "-loglevel", "error",
+          "-i", "pipe:0",
+          "-f", "s16le",
+          "-ar", "48000",
+          "-ac", "2",
+          "pipe:1",
+        ],
+        { stdio: ["pipe", "pipe", "pipe"] }
+      );
 
       let settled = false;
-      let stderrTail = "";
+      let ytdlpErr = "";
+      let ffmpegErr = "";
+      const stopChildren = () => {
+        try { ytdlp.kill("SIGKILL"); } catch {}
+        try { ffmpeg.kill("SIGKILL"); } catch {}
+      };
       const timer = setTimeout(() => {
         if (settled) return;
         settled = true;
-        try {
-          child.kill("SIGKILL");
-        } catch {}
-        reject(new Error("yt-dlp ses akisi zaman asimina ugradi."));
+        stopChildren();
+        reject(new Error("yt-dlp/ffmpeg ses akisi zaman asimina ugradi."));
       }, YTDLP_TIMEOUT_MS);
 
       const fail = (reason) => {
         if (settled) return;
         settled = true;
         clearTimeout(timer);
-        try {
-          child.kill("SIGKILL");
-        } catch {}
+        stopChildren();
         reject(new Error(reason));
       };
 
-      child.once("error", (err) => {
+      ytdlp.once("error", (err) => {
         fail(`yt-dlp calistirilamadi: ${err?.message || "bilinmeyen"}`);
       });
-
-      child.stderr.on("data", (buf) => {
-        const chunk = String(buf || "");
-        stderrTail = `${stderrTail}${chunk}`.slice(-1000);
+      ffmpeg.once("error", (err) => {
+        fail(`ffmpeg calistirilamadi: ${err?.message || "bilinmeyen"}`);
       });
 
-      child.stdout.once("readable", () => {
+      ytdlp.stderr.on("data", (buf) => {
+        const chunk = String(buf || "");
+        ytdlpErr = tailText(`${ytdlpErr}${chunk}`);
+      });
+      ffmpeg.stderr.on("data", (buf) => {
+        const chunk = String(buf || "");
+        ffmpegErr = tailText(`${ffmpegErr}${chunk}`);
+      });
+
+      ytdlp.stdout.on("error", (err) => {
+        fail(`yt-dlp cikisi hatali: ${err?.message || "bilinmeyen"}`);
+      });
+      ffmpeg.stdin.on("error", (err) => {
+        fail(`ffmpeg girisi hatali: ${err?.message || "bilinmeyen"}`);
+      });
+
+      ytdlp.stdout.pipe(ffmpeg.stdin);
+
+      ffmpeg.stdout.once("readable", () => {
         if (settled) return;
         settled = true;
         clearTimeout(timer);
-        resolve(child.stdout);
+        const pcmStream = ffmpeg.stdout;
+        pcmStream.once("close", () => stopChildren());
+        pcmStream.once("end", () => stopChildren());
+        resolve(createAudioResource(pcmStream, { inputType: StreamType.Raw }));
       });
 
-      child.once("exit", (code) => {
+      ytdlp.once("exit", (code) => {
         if (settled) return;
-        const lastLine = stderrTail
+        if (Number(code || 0) === 0) return;
+        const lastLine = ytdlpErr
           .split(/\r?\n/)
           .map((x) => x.trim())
           .filter(Boolean)
@@ -793,10 +836,17 @@ async function createResourceFromTrack(track) {
         const detail = lastLine || `cikis kodu: ${code ?? "?"}`;
         fail(`yt-dlp hata verdi (${detail})`);
       });
-    });
 
-    return createAudioResource(ytdlpStream, {
-      inputType: StreamType.Arbitrary,
+      ffmpeg.once("exit", (code) => {
+        if (settled) return;
+        const lastLine = ffmpegErr
+          .split(/\r?\n/)
+          .map((x) => x.trim())
+          .filter(Boolean)
+          .pop();
+        const detail = lastLine || `cikis kodu: ${code ?? "?"}`;
+        fail(`ffmpeg hata verdi (${detail})`);
+      });
     });
   };
 
@@ -1075,9 +1125,15 @@ async function resume(client, guildId, userVoiceChannelId) {
     if (!control.ok) throw new Error(control.reason);
     if (!state.current) throw new Error("Calan sarki yok.");
 
+    if (state.player.state?.status === AudioPlayerStatus.Playing) {
+      return { current: state.current, alreadyPlaying: true };
+    }
+
     const ok = state.player.unpause();
-    if (!ok) throw new Error("Sarki zaten caliyor olabilir.");
-    return { current: state.current };
+    if (!ok && state.player.state?.status !== AudioPlayerStatus.Playing) {
+      throw new Error("Sarki devam ettirilemedi.");
+    }
+    return { current: state.current, alreadyPlaying: state.player.state?.status === AudioPlayerStatus.Playing };
   });
 }
 
