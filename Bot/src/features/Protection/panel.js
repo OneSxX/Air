@@ -42,9 +42,22 @@ const APP_EMOJI = {
   Sohbetkoruma_Big: "1479571981593608396",
 };
 
-function e(name, fallback = "") {
+const ICON_FALLBACK = {
+  ozel_url_bildirim: "🔗",
+};
+
+function e(name, fallback = "", opts = {}) {
   const id = APP_EMOJI[name];
   if (!id) return fallback;
+
+  const guild = opts?.guild || null;
+  if (guild?.emojis?.cache) {
+    const emoji = guild.emojis.cache.get(id);
+    if (!emoji) return fallback;
+    const safeName = String(emoji.name || name).trim() || name;
+    return emoji.animated ? `<a:${safeName}:${id}>` : `<:${safeName}:${id}>`;
+  }
+
   return `<:${name}:${id}>`;
 }
 
@@ -62,13 +75,21 @@ function withEmoji(label, value, emojiName, description, opts = {}) {
   if (description) out.description = description;
 
   const id = APP_EMOJI[emojiName];
-  if (canUseOptionEmoji(id, opts)) out.emoji = { id, name: emojiName };
+  if (canUseOptionEmoji(id, opts)) {
+    const guildEmojiName = opts?.guild?.emojis?.cache?.get?.(id)?.name;
+    out.emoji = { id, name: guildEmojiName || emojiName };
+    return out;
+  }
+
+  const fallback = ICON_FALLBACK[emojiName];
+  if (fallback) out.emoji = { name: fallback };
 
   return out;
 }
 
 const onOff = (on) => (on ? e("toggle_acik", "ON") : e("toggle_kapali", "OFF"));
-const line = (iconName, text, on) => `- ${e(iconName)} **${text}:** ${onOff(on)}`;
+const line = (iconName, text, on, opts = {}) =>
+  `- ${e(iconName, ICON_FALLBACK[iconName] || "", opts)} **${text}:** ${onOff(on)}`;
 
 function getActorLabel(opts = {}) {
   const actor = opts?.actor || null;
@@ -104,15 +125,15 @@ function chatEmbed(cfg, opts = {}) {
     .setThumbnail(CHAT_IMG)
     .setDescription(
       [
-        line("caps_lock", "Caps Lock Koruma", !!t.caps),
-        line("link_engeli", "Link Koruma", !!t.links),
-        line("invite_engel", "Invite Engeli", !!t.invite),
-        line("kufur_engel", "Küfür Engeli", !!t.profanity),
-        line("emoji_limit", "Emoji Koruma", !!t.emoji),
-        line("etiket_limit", "Etiket Koruma", !!t.mentions),
-        line("flood_koruma", "Flood Koruma", !!t.flood),
-        line("spam_koruma", "Spam Koruma", !!t.spam),
-        line("everyone_limit", "Everyone Koruma", !!t.everyone),
+        line("caps_lock", "Caps Lock Koruma", !!t.caps, opts),
+        line("link_engeli", "Link Koruma", !!t.links, opts),
+        line("invite_engel", "Invite Engeli", !!t.invite, opts),
+        line("kufur_engel", "Küfür Engeli", !!t.profanity, opts),
+        line("emoji_limit", "Emoji Koruma", !!t.emoji, opts),
+        line("etiket_limit", "Etiket Koruma", !!t.mentions, opts),
+        line("flood_koruma", "Flood Koruma", !!t.flood, opts),
+        line("spam_koruma", "Spam Koruma", !!t.spam, opts),
+        line("everyone_limit", "Everyone Koruma", !!t.everyone, opts),
       ].join("\n")
     )
     .setFooter({ text: withActorFooter("Panel: sohbet", opts) });
@@ -127,12 +148,12 @@ function serverEmbed(cfg, opts = {}) {
     .setThumbnail(SERVER_IMG)
     .setDescription(
       [
-        line("tehlikeli_bot_ekleme", "Tehlikeli Bot Ekleme Koruma", !!t.bot),
-        line("rol_verme_koruma", "Rol Verme Koruma", !!t.rolegive),
-        line("ozel_url_bildirim", "Özel URL Bildirimi", !!t.vanity),
-        line("anti_raid", "Raid Koruma", !!t.antiRaid),
-        line("webhook_koruma", "Webhook Koruma", !!t.webhook),
-        line("snapshot_koruma", "Snapshot Koruma", !!t.snapshot),
+        line("tehlikeli_bot_ekleme", "Tehlikeli Bot Ekleme Koruma", !!t.bot, opts),
+        line("rol_verme_koruma", "Rol Verme Koruma", !!t.rolegive, opts),
+        line("ozel_url_bildirim", "Özel URL Bildirimi", !!t.vanity, opts),
+        line("anti_raid", "Raid Koruma", !!t.antiRaid, opts),
+        line("webhook_koruma", "Webhook Koruma", !!t.webhook, opts),
+        line("snapshot_koruma", "Snapshot Koruma", !!t.snapshot, opts),
       ].join("\n")
     )
     .setFooter({ text: withActorFooter("Panel: sunucu", opts) });
@@ -147,12 +168,12 @@ function limitsEmbed(cfg, opts = {}) {
     .setThumbnail(LIMIT_IMG)
     .setDescription(
       [
-        line("kanal_silme_limit", "Kanal Silme Sınırı Koruma", !!t.chDel),
-        line("kanal_olusturma_limit", "Kanal Oluşturma Sınırı Koruma", !!t.chCreate),
-        line("rol_silme_limit", "Rol Silme Sınırı Koruma", !!t.roleDel),
-        line("rol_olusturma_limit", "Rol Oluşturma Sınırı Koruma", !!t.roleCreate),
-        line("ban_limit", "Ban Sınırı Koruma", !!t.ban),
-        line("kick_limit", "Kick Sınırı Koruma", !!t.kick),
+        line("kanal_silme_limit", "Kanal Silme Sınırı Koruma", !!t.chDel, opts),
+        line("kanal_olusturma_limit", "Kanal Oluşturma Sınırı Koruma", !!t.chCreate, opts),
+        line("rol_silme_limit", "Rol Silme Sınırı Koruma", !!t.roleDel, opts),
+        line("rol_olusturma_limit", "Rol Oluşturma Sınırı Koruma", !!t.roleCreate, opts),
+        line("ban_limit", "Ban Sınırı Koruma", !!t.ban, opts),
+        line("kick_limit", "Kick Sınırı Koruma", !!t.kick, opts),
       ].join("\n")
     );
 
