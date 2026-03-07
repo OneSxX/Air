@@ -30,6 +30,22 @@ function normalizeTimeoutSeconds(rawMs) {
   return Math.max(MIN_AUTOMOD_TIMEOUT_SECONDS, Math.round(clampedMs / 1000));
 }
 
+async function resolveBotPermissionState(guild) {
+  let botMember = guild?.members?.me || null;
+  if (!botMember && guild?.members?.fetchMe) {
+    botMember = await (guild.members.fetchMe() || Promise.resolve(null)).catch((err) => {
+      globalThis.__airWarnSuppressedError?.(err);
+      return null;
+    });
+  }
+
+  const perms = botMember?.permissions || null;
+  return {
+    hasManageGuild: !!perms?.has?.(PermissionFlagsBits.ManageGuild),
+    hasModerateMembers: !!perms?.has?.(PermissionFlagsBits.ModerateMembers),
+  };
+}
+
 function normalizeMentionTotalLimit(raw) {
   const n = Number(raw);
   if (!Number.isFinite(n)) return 5;
@@ -63,9 +79,7 @@ async function syncMentionsAutoModRule(guild, cfg, opts = {}) {
     return { ok: false, reason: "AUTOMOD_UNAVAILABLE" };
   }
 
-  const botMember = guild.members?.me || null;
-  const hasManageGuild = !!botMember?.permissions?.has?.(PermissionFlagsBits.ManageGuild);
-  const hasModerateMembers = !!botMember?.permissions?.has?.(PermissionFlagsBits.ModerateMembers);
+  const { hasManageGuild, hasModerateMembers } = await resolveBotPermissionState(guild);
   if (!hasManageGuild) {
     return { ok: false, reason: "MISSING_MANAGE_GUILD" };
   }
