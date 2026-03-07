@@ -49,9 +49,10 @@ function e(name, fallback = "", opts = {}) {
   const guild = opts?.guild || null;
   if (guild?.emojis?.cache) {
     const emoji = guild.emojis.cache.get(id);
-    if (!emoji) return fallback;
-    const safeName = String(emoji.name || name).trim() || name;
-    return emoji.animated ? `<a:${safeName}:${id}>` : `<:${safeName}:${id}>`;
+    if (emoji) {
+      const safeName = String(emoji.name || name).trim() || name;
+      return emoji.animated ? `<a:${safeName}:${id}>` : `<:${safeName}:${id}>`;
+    }
   }
 
   return `<:${name}:${id}>`;
