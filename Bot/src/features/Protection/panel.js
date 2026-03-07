@@ -109,7 +109,18 @@ function findClientEmoji(client, name, id) {
 
   const target = String(name || "").trim().toLowerCase();
   if (!target) return null;
-  return cache.find((emoji) => String(emoji?.name || "").trim().toLowerCase() === target) || null;
+  const exact = cache.find((emoji) => String(emoji?.name || "").trim().toLowerCase() === target);
+  if (exact) return exact;
+
+  const normalizedTarget = normalizeEmojiLookupName(target);
+  if (!normalizedTarget) return null;
+  return (
+    cache.find(
+      (emoji) =>
+        normalizeEmojiLookupName(String(emoji?.name || "").trim().toLowerCase()) ===
+        normalizedTarget
+    ) || null
+  );
 }
 
 function findLookupEmoji(lookup, name, id) {
@@ -131,7 +142,7 @@ function findLookupEmoji(lookup, name, id) {
 }
 
 function resolveEmoji(opts, name, id) {
-  const allowExternalEmoji = opts?.allowExternalEmoji === true;
+  const allowExternalEmoji = opts?.allowExternalEmoji !== false;
   return (
     findLookupEmoji(opts?.emojiLookup, name, id) ||
     findGuildEmoji(opts?.guild, name, id) ||
@@ -145,6 +156,16 @@ function normalizeEmojiLookupName(name) {
     .trim()
     .toLowerCase()
     .replace(/[^a-z0-9]/g, "");
+}
+
+function normalizeRawEmojiName(name) {
+  const raw = String(name || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_]/g, "");
+  if (!raw) return "air";
+  if (raw.length < 2) return `${raw}x`;
+  return raw.slice(0, 32);
 }
 
 function buildEmojiLookup(guild) {
@@ -172,7 +193,7 @@ function buildEmojiLookup(guild) {
 
 function e(name, fallback = "", opts = {}) {
   const id = APP_EMOJI[name];
-  const resolved = resolveEmoji(opts, name, id);
+  const resolved = resolveEmoji({ ...opts, allowExternalEmoji: true }, name, id);
 
   if (resolved) {
     const safeName = String(resolved.name || name).trim() || name;
@@ -181,18 +202,17 @@ function e(name, fallback = "", opts = {}) {
       : `<:${safeName}:${resolved.id}>`;
   }
 
+  if (id) {
+    return `<:${normalizeRawEmojiName(name)}:${id}>`;
+  }
   return fallback || FALLBACK_ICON[name] || "";
 }
 
 function canUseOptionEmoji(emojiName, opts = {}) {
   if (opts?.disableOptionEmoji) return false;
   const id = APP_EMOJI[emojiName];
-  const resolved = resolveEmoji(opts, emojiName, id);
+  const resolved = resolveEmoji({ ...opts, allowExternalEmoji: true }, emojiName, id);
   if (!resolved?.id) return false;
-
-  const currentGuildId = String(opts?.guild?.id || "").trim();
-  const emojiGuildId = String(resolved?.guild?.id || "").trim();
-  if (currentGuildId && emojiGuildId && currentGuildId !== emojiGuildId) return false;
 
   return true;
 }
