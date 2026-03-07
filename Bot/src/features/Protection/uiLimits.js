@@ -175,7 +175,7 @@ const CHAT_TIMEOUT_INPUT_LABEL = "Timeout süresi (0=kapalı, örn: 5m 10h 7d 2w
 const CHAT_TIMEOUT_INPUT_PLACEHOLDER = "Birim: m=minute h=hours d=days w=week";
 const CHAT_MUTE_INPUT_LABEL = "Muted rolü verilsin mi? (0/1, kapalı/açık)";
 const CHAT_MUTE_INPUT_PLACEHOLDER = "0 = kapalı, 1 = açık";
-const CHAT_MUTE_DURATION_INPUT_LABEL = "Muted rol süresi (0=kapalı, örn: 5m 10h 7d 2w)";
+const CHAT_MUTE_DURATION_INPUT_LABEL = "Muted süre (0/5m/10h/7d/2w)";
 const CHAT_MUTE_DURATION_INPUT_PLACEHOLDER = "Birim: m=minute h=hours d=days w=week";
 
 function parseDuration(input) {
@@ -1801,7 +1801,7 @@ async function openSettingsModal(interaction, type, cfg, opts = {}) {
 
     const action = new TextInputBuilder()
       .setCustomId("action")
-      .setLabel("Aksiyon (kick/ban/kilitle/kick+kilitle/ban+kilitle)")
+      .setLabel("Aksiyon (kick/ban/kilitle/+kilitle)")
       .setPlaceholder("Örn: kick+kilitle")
       .setStyle(TextInputStyle.Short)
       .setRequired(true);
