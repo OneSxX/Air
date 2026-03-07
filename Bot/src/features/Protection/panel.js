@@ -100,6 +100,16 @@ function findClientEmoji(client, name, id) {
   return cache.find((emoji) => String(emoji?.name || "").trim().toLowerCase() === target) || null;
 }
 
+function normalizeRawEmojiName(name) {
+  const raw = String(name || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_]/g, "");
+  if (!raw) return "air";
+  if (raw.length < 2) return `${raw}x`;
+  return raw.slice(0, 32);
+}
+
 function e(name, fallback = "", opts = {}) {
   const id = APP_EMOJI[name];
   const guild = opts?.guild || null;
@@ -114,6 +124,9 @@ function e(name, fallback = "", opts = {}) {
       : `<:${safeName}:${resolved.id}>`;
   }
 
+  if (id) {
+    return `<:${normalizeRawEmojiName(name)}:${id}>`;
+  }
   return fallback || FALLBACK_ICON[name] || "";
 }
 
