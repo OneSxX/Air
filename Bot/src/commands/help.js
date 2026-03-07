@@ -84,6 +84,65 @@ function dedupeByName(commands) {
   return out;
 }
 
+function normalizePermissionBits(raw) {
+  if (raw === null || raw === undefined) return null;
+  if (typeof raw === "bigint") return raw;
+  if (typeof raw === "number" && Number.isFinite(raw)) {
+    try {
+      return BigInt(Math.trunc(raw));
+    } catch {
+      return null;
+    }
+  }
+  if (typeof raw === "string") {
+    const text = raw.trim();
+    if (!text) return null;
+    try {
+      return BigInt(text);
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+function resolveDefaultMemberPermissions(command) {
+  if (!command) return null;
+  return normalizePermissionBits(
+    command.defaultMemberPermissions ??
+    command.default_member_permissions ??
+    null
+  );
+}
+
+function commandVisibleInContext(command, interaction) {
+  if (!command) return false;
+  if (!interaction) return true;
+
+  // DM'de dm_permission:false olan slash komutlari gosterilmez.
+  if (!interaction.guildId && command.dmPermission === false) {
+    return false;
+  }
+
+  if (!interaction.guildId) return true;
+
+  const required = resolveDefaultMemberPermissions(command);
+  if (required === null) return true;
+
+  const memberBits = normalizePermissionBits(
+    interaction.memberPermissions?.bitfield ??
+    interaction.memberPermissions ??
+    null
+  );
+  if (memberBits === null) return false;
+  return (memberBits & required) === required;
+}
+
+function filterCommandsForMember(commands, interaction) {
+  const src = Array.isArray(commands) ? commands : [];
+  return src.filter((command) => commandVisibleInContext(command, interaction));
+}
+
 function getCachedActiveCommands(client) {
   if (!client) return null;
   const cached = activeCommandsCache.get(client);
@@ -394,6 +453,8 @@ module.exports = {
   },
   __private: {
     normalizeCommand,
+    commandVisibleInContext,
+    filterCommandsForMember,
     formatUsageLines,
     groupCommandsBySection,
     buildHelpEmbeds,
