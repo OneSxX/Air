@@ -78,11 +78,15 @@ async function clearCommandChannelConfig(db, guildId) {
 
 async function checkCommandChannelRestriction(interaction, client, opts = {}) {
   const bypassSet = normalizeBypassSet(opts.bypassCommands || []);
+  const allowServerManagers = opts.allowServerManagers !== false;
   if (!interaction?.isChatInputCommand?.()) return { allowed: true, channelId: "" };
   if (!interaction?.inGuild?.()) return { allowed: true, channelId: "" };
 
   const commandName = normalizeCommandName(interaction.commandName);
   if (!commandName || bypassSet.has(commandName)) return { allowed: true, channelId: "" };
+  if (allowServerManagers && isServerOwnerOrManager(interaction)) {
+    return { allowed: true, channelId: "" };
+  }
 
   const cfg = await getCommandChannelConfig(client?.db, interaction.guildId);
   const configuredChannelId = normalizeSnowflake(cfg.channelId);
