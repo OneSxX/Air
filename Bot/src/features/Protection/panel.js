@@ -42,36 +42,54 @@ const APP_EMOJI = {
   Sohbetkoruma_Big: "1479571981593608396",
 };
 
-function e(name, fallback = "", opts = {}) {
-  const id = APP_EMOJI[name];
-  if (!id) return fallback;
+function findGuildEmoji(guild, name, id) {
+  const cache = guild?.emojis?.cache;
+  if (!cache) return null;
 
-  const guild = opts?.guild || null;
-  if (guild?.emojis?.cache) {
-    const emoji = guild.emojis.cache.get(id);
-    if (emoji) {
-      const safeName = String(emoji.name || name).trim() || name;
-      return emoji.animated ? `<a:${safeName}:${id}>` : `<:${safeName}:${id}>`;
-    }
+  if (id) {
+    const byId = cache.get(id);
+    if (byId) return byId;
   }
 
+  const target = String(name || "").trim().toLowerCase();
+  if (!target) return null;
+  return cache.find((emoji) => String(emoji?.name || "").trim().toLowerCase() === target) || null;
+}
+
+function e(name, fallback = "", opts = {}) {
+  const id = APP_EMOJI[name];
+  const guild = opts?.guild || null;
+  const guildEmoji = findGuildEmoji(guild, name, id);
+  if (guildEmoji) {
+    const safeName = String(guildEmoji.name || name).trim() || name;
+    return guildEmoji.animated
+      ? `<a:${safeName}:${guildEmoji.id}>`
+      : `<:${safeName}:${guildEmoji.id}>`;
+  }
+
+  if (guild?.emojis?.cache) {
+    // Guild cache var ama emoji bulunamadiysa kirik token gostermeyelim.
+    return fallback;
+  }
+
+  if (!id) return fallback;
   return `<:${name}:${id}>`;
 }
 
-function canUseOptionEmoji(id, opts = {}) {
-  if (!id) return false;
+function canUseOptionEmoji(emojiName, opts = {}) {
   if (opts?.disableOptionEmoji) return false;
-  return !!opts?.guild?.emojis?.cache?.get?.(id);
+  const id = APP_EMOJI[emojiName];
+  return !!findGuildEmoji(opts?.guild, emojiName, id);
 }
 
 function withEmoji(label, value, emojiName, description, opts = {}) {
   const out = { label, value };
   if (description) out.description = description;
 
-  const id = APP_EMOJI[emojiName];
-  if (canUseOptionEmoji(id, opts)) {
-    const guildEmojiName = opts?.guild?.emojis?.cache?.get?.(id)?.name;
-    out.emoji = { id, name: guildEmojiName || emojiName };
+  if (canUseOptionEmoji(emojiName, opts)) {
+    const id = APP_EMOJI[emojiName];
+    const guildEmoji = findGuildEmoji(opts?.guild, emojiName, id);
+    out.emoji = { id: guildEmoji.id, name: guildEmoji.name || emojiName };
   }
 
   return out;
