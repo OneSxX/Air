@@ -610,35 +610,12 @@ async function ensureVoiceConnection(state, voiceChannel) {
   }
 
   if (!ready) {
-    await sleep(1_500);
-    const me = guild.members?.me ||
-      await (guild.members.fetchMe() || Promise.resolve(null)).catch((err) => { globalThis.__airWarnSuppressedError?.(err); return null; });
-    const botJoinedSameChannel = String(me?.voice?.channelId || "") === String(voiceChannel.id);
-    const currentStatus = String(connection.state?.status || lastStatus || "unknown");
-    const isRecoverableStatus =
-      currentStatus === VoiceConnectionStatus.Signalling ||
-      currentStatus === VoiceConnectionStatus.Connecting ||
-      lastStatus === VoiceConnectionStatus.Signalling ||
-      lastStatus === VoiceConnectionStatus.Connecting;
-
-    // Bazi ortamlarda Ready gec geliyor (ozellikle signalling/connecting'de).
-    // Bot fiilen ayni ses kanalina girdiyse veya recoverable durumda ise hata vermeden devam et.
-    if (botJoinedSameChannel || isRecoverableStatus) {
-      connection.subscribe(state.player);
-      state.connection = connection;
-      state.voiceChannelId = voiceChannel.id;
-      if (!botJoinedSameChannel) {
-        console.warn(`[music] Voice ready timeout, recoverable status ile devam ediliyor: ${currentStatus}`);
-      }
-      return;
-    }
-
     try {
       connection.destroy();
     } catch {}
     throw new Error(
       `Ses kanalina baglanilamadi (durum: ${lastStatus}). ` +
-      "Ayni tokenin birden fazla yerde calismadigini, kanal izinlerini ve VPS ag erisimini kontrol et."
+      "Ayni tokenin birden fazla yerde calismadigini, kanal izinlerini ve VPS VPC egress UDP/TCP kurallarini kontrol et."
     );
   }
 
@@ -952,10 +929,12 @@ async function playNext(state) {
 
   try {
     if (state.connection.state?.status !== VoiceConnectionStatus.Ready) {
-      await entersState(state.connection, VoiceConnectionStatus.Ready, 8_000);
+      await entersState(state.connection, VoiceConnectionStatus.Ready, 12_000);
     }
   } catch (err) {
-    globalThis.__airWarnSuppressedError?.(err);
+    throw new Error(
+      `Ses baglantisi hazir degil (durum: ${state.connection.state?.status || "unknown"}).`
+    );
   }
 
   const next = state.queue.shift();

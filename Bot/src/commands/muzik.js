@@ -76,6 +76,9 @@ function mapMusicError(err) {
   if (lower.includes("sunucu tarafindan susturulmus")) {
     return "Bot ses kanalinda sunucu tarafindan susturulmus. Botu unmute edip tekrar dene.";
   }
+  if (lower.includes("ses baglantisi hazir degil")) {
+    return "Ses baglantisi hazir olamadi. VPS agi (VPC egress UDP/TCP) veya voice baglantisi sorunlu.";
+  }
   if (lower.includes("yt-dlp") && lower.includes("calistirilamadi")) {
     return "yt-dlp bulunamadi. VPS'e `yt-dlp` kur veya YTDLP_PATH tanimla.";
   }
