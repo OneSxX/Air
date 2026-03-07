@@ -1,5 +1,5 @@
 const { PermissionFlagsBits, AuditLogEvent, ChannelType } = require("discord.js");
-const { renderPanels, renderCombinedPanel } = require("./panel");
+const { renderPanels, renderCombinedPanel, buildEmojiLookup } = require("./panel");
 const { handleLimitUI } = require("./uiLimits");
 const { getConfig, setConfig } = require("./database");
 const { syncLinkAutoModRule } = require("./autoModLinks");
@@ -2322,6 +2322,7 @@ async function sendOrUpdatePanel(interaction, cfg, opts = {}) {
 
   // Emoji ad/id fallback calissin diye cache'i panel cizmeden once yenile.
   await (guild.emojis?.fetch?.() || Promise.resolve()).catch((err) => { globalThis.__airWarnSuppressedError?.(err); });
+  const emojiLookup = buildEmojiLookup(guild);
 
   let channel = interaction?.channel;
   if (!channel) throw new Error("Kanal bulunamadi.");
@@ -2335,7 +2336,7 @@ async function sendOrUpdatePanel(interaction, cfg, opts = {}) {
     throw new Error("Bu komut sadece mesaj atilabilen bir text kanalda calisir.");
   }
 
-  const panels = renderPanels(cfg, { actor: interaction?.user || null, guild });
+  const panels = renderPanels(cfg, { actor: interaction?.user || null, guild, emojiLookup });
   const botId = guild.members?.me?.id || guild.client?.user?.id;
   const sourceMessage = interaction?.message;
 
@@ -2422,6 +2423,7 @@ async function sendOrUpdateCombinedPanel(interaction, cfg, opts = {}) {
 
   // Emoji ad/id fallback calissin diye cache'i panel cizmeden once yenile.
   await (guild.emojis?.fetch?.() || Promise.resolve()).catch((err) => { globalThis.__airWarnSuppressedError?.(err); });
+  const emojiLookup = buildEmojiLookup(guild);
 
   let channel = interaction?.channel;
   if (!channel) throw new Error("Kanal bulunamadi.");
@@ -2434,7 +2436,7 @@ async function sendOrUpdateCombinedPanel(interaction, cfg, opts = {}) {
     throw new Error("Bu komut sadece mesaj atilabilen bir text kanalda calisir.");
   }
 
-  const payload = renderCombinedPanel(cfg, { actor: interaction?.user || null, guild });
+  const payload = renderCombinedPanel(cfg, { actor: interaction?.user || null, guild, emojiLookup });
   const botId = guild.members?.me?.id || guild.client?.user?.id;
   const sourceMessage = interaction?.message;
   if (!recreate && sourceMessage?.author?.id === botId && isCombinedPanelMsg(sourceMessage)) {

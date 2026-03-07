@@ -83,7 +83,19 @@ function findGuildEmoji(guild, name, id) {
 
   const target = String(name || "").trim().toLowerCase();
   if (!target) return null;
-  return cache.find((emoji) => String(emoji?.name || "").trim().toLowerCase() === target) || null;
+  const exact = cache.find((emoji) => String(emoji?.name || "").trim().toLowerCase() === target);
+  if (exact) return exact;
+
+  const normalizedTarget = normalizeEmojiLookupName(target);
+  if (!normalizedTarget) return null;
+
+  return (
+    cache.find(
+      (emoji) =>
+        normalizeEmojiLookupName(String(emoji?.name || "").trim().toLowerCase()) ===
+        normalizedTarget
+    ) || null
+  );
 }
 
 function findClientEmoji(client, name, id) {
@@ -100,22 +112,67 @@ function findClientEmoji(client, name, id) {
   return cache.find((emoji) => String(emoji?.name || "").trim().toLowerCase() === target) || null;
 }
 
-function normalizeRawEmojiName(name) {
-  const raw = String(name || "")
+function findLookupEmoji(lookup, name, id) {
+  if (!lookup) return null;
+
+  if (id) {
+    const byId = lookup?.byId?.get?.(id);
+    if (byId) return byId;
+  }
+
+  const target = String(name || "").trim().toLowerCase();
+  if (!target) return null;
+  const exact = lookup?.byName?.get?.(target);
+  if (exact) return exact;
+
+  const normalizedTarget = normalizeEmojiLookupName(target);
+  if (!normalizedTarget) return null;
+  return lookup?.byNormalizedName?.get?.(normalizedTarget) || null;
+}
+
+function resolveEmoji(opts, name, id) {
+  const allowExternalEmoji = opts?.allowExternalEmoji === true;
+  return (
+    findLookupEmoji(opts?.emojiLookup, name, id) ||
+    findGuildEmoji(opts?.guild, name, id) ||
+    (allowExternalEmoji ? findClientEmoji(opts?.guild?.client, name, id) : null) ||
+    null
+  );
+}
+
+function normalizeEmojiLookupName(name) {
+  return String(name || "")
     .trim()
     .toLowerCase()
-    .replace(/[^a-z0-9_]/g, "");
-  if (!raw) return "air";
-  if (raw.length < 2) return `${raw}x`;
-  return raw.slice(0, 32);
+    .replace(/[^a-z0-9]/g, "");
+}
+
+function buildEmojiLookup(guild) {
+  const byId = new Map();
+  const byName = new Map();
+  const byNormalizedName = new Map();
+
+  const cache = guild?.emojis?.cache;
+  if (!cache?.size) return { byId, byName, byNormalizedName };
+
+  for (const emoji of cache.values()) {
+    const id = String(emoji?.id || "").trim();
+    const lowerName = String(emoji?.name || "").trim().toLowerCase();
+    if (id && !byId.has(id)) byId.set(id, emoji);
+    if (lowerName && !byName.has(lowerName)) byName.set(lowerName, emoji);
+
+    const normalized = normalizeEmojiLookupName(lowerName);
+    if (normalized && !byNormalizedName.has(normalized)) {
+      byNormalizedName.set(normalized, emoji);
+    }
+  }
+
+  return { byId, byName, byNormalizedName };
 }
 
 function e(name, fallback = "", opts = {}) {
   const id = APP_EMOJI[name];
-  const guild = opts?.guild || null;
-  const resolved =
-    findGuildEmoji(guild, name, id) ||
-    findClientEmoji(guild?.client, name, id);
+  const resolved = resolveEmoji(opts, name, id);
 
   if (resolved) {
     const safeName = String(resolved.name || name).trim() || name;
@@ -124,16 +181,20 @@ function e(name, fallback = "", opts = {}) {
       : `<:${safeName}:${resolved.id}>`;
   }
 
-  if (id) {
-    return `<:${normalizeRawEmojiName(name)}:${id}>`;
-  }
   return fallback || FALLBACK_ICON[name] || "";
 }
 
 function canUseOptionEmoji(emojiName, opts = {}) {
   if (opts?.disableOptionEmoji) return false;
   const id = APP_EMOJI[emojiName];
-  return !!findGuildEmoji(opts?.guild, emojiName, id);
+  const resolved = resolveEmoji(opts, emojiName, id);
+  if (!resolved?.id) return false;
+
+  const currentGuildId = String(opts?.guild?.id || "").trim();
+  const emojiGuildId = String(resolved?.guild?.id || "").trim();
+  if (currentGuildId && emojiGuildId && currentGuildId !== emojiGuildId) return false;
+
+  return true;
 }
 
 function withEmoji(label, value, emojiName, description, opts = {}) {
@@ -142,8 +203,10 @@ function withEmoji(label, value, emojiName, description, opts = {}) {
 
   if (canUseOptionEmoji(emojiName, opts)) {
     const id = APP_EMOJI[emojiName];
-    const guildEmoji = findGuildEmoji(opts?.guild, emojiName, id);
-    out.emoji = { id: guildEmoji.id, name: guildEmoji.name || emojiName };
+    const guildEmoji = resolveEmoji(opts, emojiName, id);
+    if (guildEmoji?.id) {
+      out.emoji = { id: guildEmoji.id, name: guildEmoji.name || emojiName };
+    }
   }
 
   return out;
@@ -341,4 +404,4 @@ function renderCombinedPanel(cfg, opts = {}) {
   };
 }
 
-module.exports = { renderPanels, renderCombinedPanel };
+module.exports = { renderPanels, renderCombinedPanel, buildEmojiLookup };

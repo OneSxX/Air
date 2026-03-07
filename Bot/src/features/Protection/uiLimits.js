@@ -14,7 +14,7 @@ const {
 } = require("discord.js");
 
 const { getConfig, setConfig } = require("./database");
-const { renderPanels, renderCombinedPanel } = require("./panel");
+const { renderPanels, renderCombinedPanel, buildEmojiLookup } = require("./panel");
 const {
   panelTypeFromSelectId,
   getSinglePanelTypeFromMessage,
@@ -715,9 +715,17 @@ async function resetSelectMenuState(interaction, client, cfgHint = null) {
   if (!msg?.edit) return;
 
   const cfg = cfgHint || await getConfig(client.db, interaction.guildId);
+  const guild = interaction?.guild || null;
+
+  await (guild?.emojis?.fetch?.() || Promise.resolve()).catch((err) => { globalThis.__airWarnSuppressedError?.(err); });
+  const emojiLookup = buildEmojiLookup(guild);
 
   if (isCombinedPanelMessage(msg)) {
-    const payload = renderCombinedPanel(cfg, { actor: interaction?.user || null, guild: interaction?.guild || null });
+    const payload = renderCombinedPanel(cfg, {
+      actor: interaction?.user || null,
+      guild,
+      emojiLookup,
+    });
     await (msg.edit(payload) || Promise.resolve()).catch((err) => { globalThis.__airWarnSuppressedError?.(err); });
     return;
   }
@@ -727,7 +735,11 @@ async function resetSelectMenuState(interaction, client, cfgHint = null) {
     panelTypeFromMessage(msg);
   if (!panelType) return;
 
-  const panels = renderPanels(cfg, { actor: interaction?.user || null, guild: interaction?.guild || null });
+  const panels = renderPanels(cfg, {
+    actor: interaction?.user || null,
+    guild,
+    emojiLookup,
+  });
   const payload = panels?.[panelType];
   if (!payload) return;
 
