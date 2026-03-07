@@ -161,13 +161,6 @@ try {
 }
 
 try {
-  client.features.Music = require("./features/Music");
-  if (client.features.Music?.init) client.features.Music.init(client, db, config);
-} catch (e) {
-  console.warn("Music yuklenemedi:", e?.message || e);
-}
-
-try {
   client.features.SystemOps = systemOpsModule || require("./features/SystemOps");
   if (client.features.SystemOps?.init) client.features.SystemOps.init(client, db, config);
 } catch (e) {

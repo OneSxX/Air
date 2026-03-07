@@ -4,7 +4,7 @@ const { getGlobalCommandsBody } = require("../slash/register");
 const HELP_SECTIONS = [
   {
     title: "Genel Komutlar",
-    names: ["help", "avatar", "profile", "servertop", "market", "sicil", "kelimeoyunu", "sayioyunu", "muzik", "durum"],
+    names: ["help", "avatar", "profile", "servertop", "market", "sicil", "kelimeoyunu", "sayioyunu", "durum"],
   },
   {
     title: "Moderasyon Komutlari",
@@ -368,4 +368,3 @@ module.exports = {
     clearActiveCommandsCache,
   },
 };
-

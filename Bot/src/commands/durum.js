@@ -56,10 +56,6 @@ module.exports = {
 
       const system = client.features?.SystemOps || require("../features/SystemOps");
       const status = await system.getStatus(client, interaction.guildId || "global");
-      const music = client.features?.Music;
-      const musicSnapshot = interaction.guildId
-        ? music?.getQueueSnapshot?.(client, interaction.guildId)
-        : null;
 
       const lines = [];
       lines.push(`Uptime: **${formatAgo(status.uptimeMs)}**`);
@@ -91,15 +87,6 @@ module.exports = {
         );
       } else {
         lines.push("Bekleyen Restore: -");
-      }
-
-      if (musicSnapshot) {
-        const musicLine = musicSnapshot.current
-          ? `Muzik: Caliyor (**${musicSnapshot.current.title}**) | Kuyruk: **${musicSnapshot.queueCount}**`
-          : musicSnapshot.queueCount > 0
-            ? `Muzik: Hazir | Kuyruk: **${musicSnapshot.queueCount}**`
-            : "Muzik: Bos";
-        lines.push(musicLine);
       }
 
       if (Array.isArray(status.auditRecent) && status.auditRecent.length) {

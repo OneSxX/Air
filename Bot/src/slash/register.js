@@ -479,57 +479,6 @@ function getGlobalCommandsBody() {
       ],
     },
     {
-      name: "muzik",
-      description: "Muzik sistemi komutlari.",
-      type: 1,
-      dm_permission: false,
-      options: [
-        {
-          type: 1,
-          name: "cal",
-          description: "Sarki veya YouTube linki oynatir.",
-          options: [
-            {
-              name: "sorgu",
-              description: "Sarki ismi veya YouTube linki",
-              type: 3,
-              required: true,
-            },
-          ],
-        },
-        {
-          type: 1,
-          name: "kuyruk",
-          description: "Muzik kuyrugunu gosterir.",
-        },
-        {
-          type: 1,
-          name: "simdicalan",
-          description: "Su an calan sarkiyi gosterir.",
-        },
-        {
-          type: 1,
-          name: "gec",
-          description: "Calan sarkiyi gecer.",
-        },
-        {
-          type: 1,
-          name: "duraklat",
-          description: "Calan sarkiyi duraklatir.",
-        },
-        {
-          type: 1,
-          name: "devam",
-          description: "Duraklatilan sarkiyi devam ettirir.",
-        },
-        {
-          type: 1,
-          name: "durdur",
-          description: "Muzigi durdurur ve kuyrugu temizler.",
-        },
-      ],
-    },
-    {
       name: "giveaway",
       description: "Giveaway baslatir, bitirir ve yeniden ceker.",
       type: 1,

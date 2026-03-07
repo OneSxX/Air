@@ -19,14 +19,5 @@ module.exports = {
     } catch (e) {
       console.error("Logs onVoiceStateUpdate hata:", e);
     }
-
-    try {
-      const music = client.features?.Music;
-      if (music?.onVoiceStateUpdate) {
-        await music.onVoiceStateUpdate(oldState, newState, client);
-      }
-    } catch (e) {
-      console.error("Music onVoiceStateUpdate hata:", e);
-    }
   },
 };

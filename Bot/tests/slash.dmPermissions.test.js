@@ -19,7 +19,6 @@ const GUILD_ONLY_COMMANDS = new Set([
   "hosgeldinembed",
   "kelimeoyunu",
   "sayioyunu",
-  "muzik",
   "giveaway",
   "durum",
   "yedek",

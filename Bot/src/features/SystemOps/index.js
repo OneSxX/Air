@@ -510,7 +510,6 @@ function getCommandCooldownMs(commandName) {
     servertop: 3000,
     profile: 2000,
     market: 1500,
-    muzik: 700,
     help: 1000,
   };
   return Number(map[name] || 1200);
