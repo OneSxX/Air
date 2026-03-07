@@ -114,7 +114,6 @@ function e(name, fallback = "", opts = {}) {
       : `<:${safeName}:${resolved.id}>`;
   }
 
-  if (id) return `<:${name}:${id}>`;
   return fallback || FALLBACK_ICON[name] || "";
 }
 
