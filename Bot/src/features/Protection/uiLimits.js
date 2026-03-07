@@ -3056,6 +3056,22 @@ function isProtectionCustomId(customId) {
   return /^(caps|links|profanity|emoji|mentions|flood|spam|everyone):exempt:(roles|channels)$/.test(id);
 }
 
+function parseToggleKeyFromSelectValue(rawValue) {
+  const value = String(rawValue || "").trim();
+  if (!value) return null;
+
+  if (value.startsWith("tg:")) return value.slice(3) || null;
+  if (value.startsWith("toggle:")) return value.split(":")[1] || null;
+  if (value.startsWith("settings:")) return value.split(":")[1] || null;
+  if (TOGGLE_KEYS.has(value)) return value;
+  return null;
+}
+
+function normalizeServerToggleKey(key) {
+  if (key === "raid") return "antiRaid";
+  return key;
+}
+
 async function handleLimitUI(interaction, client) {
   if (!interaction.guildId) return false;
   if (!isProtectionCustomId(interaction.customId)) return false;
@@ -3178,12 +3194,21 @@ async function handleLimitUI(interaction, client) {
     }
 
     if (v.startsWith("tg:")) {
-      const key = v.slice(3);
+      const key = parseToggleKeyFromSelectValue(v);
       if (LIMIT_KEYS.has(key)) handled = await handleLimitSelect(interaction, client, key);
       else handled = await handleToggle(interaction, client, key);
 
       if (handled) resetSelectMenuState(interaction, client).catch((err) => { globalThis.__airWarnSuppressedError?.(err); });
       return handled;
+    }
+
+    {
+      const key = parseToggleKeyFromSelectValue(v);
+      if (key && LIMIT_KEYS.has(key)) {
+        handled = await handleLimitSelect(interaction, client, key);
+        if (handled) resetSelectMenuState(interaction, client).catch((err) => { globalThis.__airWarnSuppressedError?.(err); });
+        return handled;
+      }
     }
 
     return false;
@@ -3194,8 +3219,9 @@ async function handleLimitUI(interaction, client) {
     if (!v) return false;
     let handled = false;
 
-    if (v.startsWith("tg:")) {
-      const key = v.slice(3);
+    if (v.startsWith("tg:") || v.startsWith("toggle:") || v.startsWith("settings:") || TOGGLE_KEYS.has(v)) {
+      const key = parseToggleKeyFromSelectValue(v);
+      if (!key) return false;
       if (CHAT_TIMEOUT_KEYS.has(key)) handled = await handleChatToggleSelect(interaction, client, key);
       else handled = await handleToggle(interaction, client, key);
 
@@ -3209,8 +3235,9 @@ async function handleLimitUI(interaction, client) {
     const v = interaction.values?.[0];
     if (!v) return false;
     let handled = false;
+    const serverKey = normalizeServerToggleKey(parseToggleKeyFromSelectValue(v));
 
-    if (v === "tg:antiRaid") {
+    if (v === "tg:antiRaid" || serverKey === "antiRaid") {
       const cfg = await getConfig(client.db, interaction.guildId);
       if (cfg?.toggles?.antiRaid) {
         handled = await promptDisable(
@@ -3232,7 +3259,7 @@ async function handleLimitUI(interaction, client) {
       return handled;
     }
 
-    if (v === "tg:roleperm") {
+    if (v === "tg:roleperm" || serverKey === "roleperm") {
       if (!interaction.replied && !interaction.deferred) {
         await interaction.reply({
           content: "Role İzin Verme koruma panelden kaldırıldı.",
@@ -3243,8 +3270,9 @@ async function handleLimitUI(interaction, client) {
       return true;
     }
 
-    if (v.startsWith("tg:")) {
-      handled = await handleToggle(interaction, client, v.slice(3));
+    if (v.startsWith("tg:") || v.startsWith("toggle:") || v.startsWith("settings:") || serverKey) {
+      if (!serverKey) return false;
+      handled = await handleToggle(interaction, client, serverKey);
       if (handled) resetSelectMenuState(interaction, client).catch((err) => { globalThis.__airWarnSuppressedError?.(err); });
       return handled;
     }

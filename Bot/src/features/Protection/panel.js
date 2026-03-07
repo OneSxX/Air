@@ -49,7 +49,7 @@ function e(name, fallback = "", opts = {}) {
   const guild = opts?.guild || null;
   if (guild?.emojis?.cache) {
     const emoji = guild.emojis.cache.get(id);
-    if (!emoji) return `<:${name}:${id}>`;
+    if (!emoji) return fallback;
     const safeName = String(emoji.name || name).trim() || name;
     return emoji.animated ? `<a:${safeName}:${id}>` : `<:${safeName}:${id}>`;
   }
@@ -59,7 +59,8 @@ function e(name, fallback = "", opts = {}) {
 
 function canUseOptionEmoji(id, opts = {}) {
   if (!id) return false;
-  return !opts?.disableOptionEmoji;
+  if (opts?.disableOptionEmoji) return false;
+  return !!opts?.guild?.emojis?.cache?.get?.(id);
 }
 
 function withEmoji(label, value, emojiName, description, opts = {}) {
