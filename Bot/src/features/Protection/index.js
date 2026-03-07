@@ -2320,6 +2320,9 @@ async function sendOrUpdatePanel(interaction, cfg, opts = {}) {
   const guild = interaction?.guild;
   if (!guild) throw new Error("Bu komut sadece sunucuda calisir.");
 
+  // Emoji ad/id fallback calissin diye cache'i panel cizmeden once yenile.
+  await (guild.emojis?.fetch?.() || Promise.resolve()).catch((err) => { globalThis.__airWarnSuppressedError?.(err); });
+
   let channel = interaction?.channel;
   if (!channel) throw new Error("Kanal bulunamadi.");
 
@@ -2416,6 +2419,9 @@ async function sendOrUpdateCombinedPanel(interaction, cfg, opts = {}) {
   const recreate = !!opts?.recreate;
   const guild = interaction?.guild;
   if (!guild) throw new Error("Bu komut sadece sunucuda calisir.");
+
+  // Emoji ad/id fallback calissin diye cache'i panel cizmeden once yenile.
+  await (guild.emojis?.fetch?.() || Promise.resolve()).catch((err) => { globalThis.__airWarnSuppressedError?.(err); });
 
   let channel = interaction?.channel;
   if (!channel) throw new Error("Kanal bulunamadi.");
