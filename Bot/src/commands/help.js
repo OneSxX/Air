@@ -45,6 +45,16 @@ const SECTION_ORDER_BY_NAME = new Map(
 
 const ACTIVE_COMMANDS_CACHE_TTL_MS = 30_000;
 const activeCommandsCache = new WeakMap();
+const SECTION_EMOJIS = new Map([
+  ["Genel Komutlar", "📌"],
+  ["Moderasyon Komutlari", "🛡️"],
+  ["Koruma Panelleri", "🔒"],
+  ["Log ve Seviye", "📊"],
+  ["Tepki Roller", "🎭"],
+  ["Ticket", "🎫"],
+  ["Voice Oda Yonetimi", "🎙️"],
+  ["Diger Komutlar", "📦"],
+]);
 
 function normalizeCommand(raw) {
   const base = raw?.toJSON ? raw.toJSON() : raw;
@@ -251,13 +261,14 @@ function buildHelpEmbeds(commands, userTag) {
       const usages = formatUsageLines(cmd);
       if (!usages.length) continue;
       const desc = cmd.description || "Aciklama yok.";
-      lines.push(`- \`${usages[0]}\` -> ${desc}`);
+      lines.push(`• \`${usages[0]}\` - ${desc}`);
       for (const extraUsage of usages.slice(1)) {
-        lines.push(`  + \`${extraUsage}\``);
+        lines.push(`  ↳ \`${extraUsage}\``);
       }
     }
     if (!lines.length) continue;
-    fields.push(...splitFieldLines(title, lines));
+    const emoji = SECTION_EMOJIS.get(title) || "•";
+    fields.push(...splitFieldLines(`${emoji} ${title}`, lines));
   }
 
   if (!fields.length) {
@@ -270,9 +281,9 @@ function buildHelpEmbeds(commands, userTag) {
 
   const totalCommands = Array.isArray(commands) ? commands.length : 0;
   const baseDescription =
-    "Tum slash komutlar kategori bazli listelenmistir.\n" +
+    "Komutlar kategori bazli listelendi.\n" +
     `Toplam komut: **${totalCommands}**\n` +
-    "Parametreler: `<zorunlu>` `[opsiyonel]`";
+    "Kullanim: `<zorunlu>` `[opsiyonel]`";
 
   const chunks = [];
   for (let i = 0; i < fields.length; i += 5) {
@@ -329,7 +340,11 @@ module.exports = {
   async execute(interaction, client) {
     try {
       if (!interaction.deferred && !interaction.replied) {
-        await interaction.deferReply({ ephemeral: true });
+        if (interaction.guildId) {
+          await interaction.deferReply({ ephemeral: true });
+        } else {
+          await interaction.deferReply();
+        }
       }
 
       const userTag = interaction?.user?.tag || interaction?.user?.id || "";
@@ -343,9 +358,28 @@ module.exports = {
         embeds = buildEmergencyHelpEmbeds(userTag);
       }
 
-      return interaction.editReply({ embeds }).catch((err) => {
+      if (!interaction.guildId) {
+        return interaction.editReply({ embeds }).catch((err) => {
+          globalThis.__airWarnSuppressedError?.(err);
+        });
+      }
+
+      const sentDm = await (interaction.user.send({ embeds }) || Promise.resolve(null)).catch((err) => {
         globalThis.__airWarnSuppressedError?.(err);
+        return null;
       });
+
+      if (!sentDm) {
+        return interaction
+          .editReply(
+            "DM gonderilemedi. Discord gizlilik ayarindan bu sunucu icin DM'i acip tekrar dene."
+          )
+          .catch((err) => { globalThis.__airWarnSuppressedError?.(err); });
+      }
+
+      return interaction
+        .editReply("Komut rehberini DM olarak gonderdim. DM kutunu kontrol et.")
+        .catch((err) => { globalThis.__airWarnSuppressedError?.(err); });
     } catch (err) {
       console.error("help command error:", err);
       if (interaction.deferred || interaction.replied) {
