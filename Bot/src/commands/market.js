@@ -149,7 +149,7 @@ function buildMarketPayload(items) {
     embed.setDescription(
       `Market su an bos.\n\n` +
       `Urun eklemek icin:\n` +
-      `\`/marketyonet islem:ekle isim:<urun> coin:<miktar> [rol]\``
+      `\`/marketyonet islem:ekle isim:<urun> coin:<miktar>\``
     );
 
     return {
