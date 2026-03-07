@@ -1,9 +1,16 @@
 const { Client, GatewayIntentBits, Collection, Partials } = require("discord.js");
+const dns = require("node:dns");
 const { QuickDB } = require("quick.db");
 const config = require("./config/config");
 const { enforceBlackEmbedColor } = require("./utils/embed");
 const { installSuppressedErrorReporter } = require("./utils/suppressedError");
 let systemOpsModule = null;
+
+try {
+  dns.setDefaultResultOrder("ipv4first");
+} catch (e) {
+  console.warn("DNS result order ayarlanamadi:", e?.message || e);
+}
 
 installSuppressedErrorReporter(globalThis);
 
