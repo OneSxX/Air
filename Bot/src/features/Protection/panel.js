@@ -42,8 +42,52 @@ const APP_EMOJI = {
   Sohbetkoruma_Big: "1479571981593608396",
 };
 
+const FALLBACK_ICON = {
+  caps_lock: "🔠",
+  tehlikeli_bot_ekleme: "🤖",
+  spam_koruma: "🚫",
+  kufur_engel: "🚫",
+  role_izin_koruma: "🛡️",
+  rol_verme_koruma: "🛡️",
+  link_engeli: "🔗",
+  invite_engel: "📨",
+  flood_koruma: "🌊",
+  everyone_limit: "📢",
+  etiket_limit: "🏷️",
+  emoji_limit: "😀",
+  rol_silme_limit: "🧩",
+  rol_olusturma_limit: "🧩",
+  ozel_url_bildirim: "🔔",
+  kick_limit: "🥾",
+  kanal_silme_limit: "🗑️",
+  kanal_olusturma_limit: "🧱",
+  ban_limit: "⛔",
+  toggle_kapali: "OFF",
+  toggle_acik: "ON",
+  anti_raid: "🚨",
+  webhook_koruma: "🪝",
+  snapshot_koruma: "📸",
+  yetkikoruma_big: "🛡️",
+  sunucukoruma_big: "🛡️",
+  Sohbetkoruma_Big: "💬",
+};
+
 function findGuildEmoji(guild, name, id) {
   const cache = guild?.emojis?.cache;
+  if (!cache) return null;
+
+  if (id) {
+    const byId = cache.get(id);
+    if (byId) return byId;
+  }
+
+  const target = String(name || "").trim().toLowerCase();
+  if (!target) return null;
+  return cache.find((emoji) => String(emoji?.name || "").trim().toLowerCase() === target) || null;
+}
+
+function findClientEmoji(client, name, id) {
+  const cache = client?.emojis?.cache;
   if (!cache) return null;
 
   if (id) {
@@ -59,21 +103,19 @@ function findGuildEmoji(guild, name, id) {
 function e(name, fallback = "", opts = {}) {
   const id = APP_EMOJI[name];
   const guild = opts?.guild || null;
-  const guildEmoji = findGuildEmoji(guild, name, id);
-  if (guildEmoji) {
-    const safeName = String(guildEmoji.name || name).trim() || name;
-    return guildEmoji.animated
-      ? `<a:${safeName}:${guildEmoji.id}>`
-      : `<:${safeName}:${guildEmoji.id}>`;
+  const resolved =
+    findGuildEmoji(guild, name, id) ||
+    findClientEmoji(guild?.client, name, id);
+
+  if (resolved) {
+    const safeName = String(resolved.name || name).trim() || name;
+    return resolved.animated
+      ? `<a:${safeName}:${resolved.id}>`
+      : `<:${safeName}:${resolved.id}>`;
   }
 
-  if (guild?.emojis?.cache) {
-    // Guild cache var ama emoji bulunamadiysa kirik token gostermeyelim.
-    return fallback;
-  }
-
-  if (!id) return fallback;
-  return `<:${name}:${id}>`;
+  if (id) return `<:${name}:${id}>`;
+  return fallback || FALLBACK_ICON[name] || "";
 }
 
 function canUseOptionEmoji(emojiName, opts = {}) {
@@ -97,7 +139,7 @@ function withEmoji(label, value, emojiName, description, opts = {}) {
 
 const onOff = (on, opts = {}) => (on ? e("toggle_acik", "ON", opts) : e("toggle_kapali", "OFF", opts));
 const line = (iconName, text, on, opts = {}) =>
-  `- ${e(iconName, "", opts)} **${text}:** ${onOff(on, opts)}`;
+  `- ${e(iconName, FALLBACK_ICON[iconName] || "", opts)} **${text}:** ${onOff(on, opts)}`;
 
 function getActorLabel(opts = {}) {
   const actor = opts?.actor || null;
